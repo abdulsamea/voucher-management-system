@@ -29,14 +29,11 @@ export class Voucher {
   @Column({ type: 'timestamp' })
   expirationDate: Date;
 
-  @Column({ type: 'int', default: 0 })
+  @Column({ type: 'int', default: 1 })
   usageLimit: number;
 
   @Column({ type: 'float', nullable: true })
   minOrderValue?: number | null;
-
-  @Column({ type: 'int', default: 0 })
-  usedCount: number;
 
   // TODO: add types orders list
   @OneToMany('Order', 'voucher', { eager: false })
