@@ -125,7 +125,7 @@ export class VoucherService {
     return this.voucherRepo.save(voucher);
   }
 
-  async remove(id: number): Promise<void> {
+  async delete(id: number): Promise<void> {
     const voucher = await this.findOne(id);
 
     try {

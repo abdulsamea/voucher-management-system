@@ -34,8 +34,4 @@ export class Voucher {
 
   @Column({ type: 'float', nullable: true })
   minOrderValue?: number | null;
-
-  // TODO: add types orders list
-  @OneToMany('Order', 'voucher', { eager: false })
-  orders?: any[];
 }
