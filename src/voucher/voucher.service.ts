@@ -150,7 +150,7 @@ export class VoucherService {
 
       if (isNaN(exp.getTime())) {
         throw new BadRequestException(
-          'Invalid expiration date for this voucher to be updated.',
+          'Invalid expiration date for this voucher.',
         );
       }
 

@@ -18,7 +18,6 @@ export class VoucherController {
   constructor(private readonly voucherService: VoucherService) {}
 
   @Post()
-  @ApiBody({ type: CreateVoucherDto })
   create(@Body() voucherDto: CreateVoucherDto) {
     return this.voucherService.create(voucherDto);
   }
@@ -34,7 +33,6 @@ export class VoucherController {
   }
 
   @Patch(':code')
-  @ApiBody({ type: UpdateVoucherDto })
   update(@Param('code') code: string, @Body() voucherDto: UpdateVoucherDto) {
     return this.voucherService.update(code, voucherDto);
   }
