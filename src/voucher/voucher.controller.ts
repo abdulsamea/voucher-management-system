@@ -1,3 +1,4 @@
+import { ApiBody, ApiTags } from '@nestjs/swagger';
 import {
   Controller,
   Post,
@@ -6,15 +7,19 @@ import {
   Delete,
   Body,
   Param,
+  ParseIntPipe,
 } from '@nestjs/common';
 import { VoucherService } from './voucher.service';
+import { CreateVoucherDto, UpdateVoucherDto } from './voucher.dto';
 
+@ApiTags('Voucher')
 @Controller('voucher')
 export class VoucherController {
-  constructor(private voucherService: VoucherService) {}
+  constructor(private readonly voucherService: VoucherService) {}
 
   @Post()
-  create(@Body() voucherDto) {
+  @ApiBody({ type: CreateVoucherDto })
+  create(@Body() voucherDto: CreateVoucherDto) {
     return this.voucherService.create(voucherDto);
   }
 
@@ -24,17 +29,18 @@ export class VoucherController {
   }
 
   @Get(':id')
-  findOne(@Param('id') id: number) {
+  findOne(@Param('id', ParseIntPipe) id: number) {
     return this.voucherService.findOne(id);
   }
 
   @Patch(':code')
-  update(@Param('code') code: string, @Body() voucherDto) {
+  @ApiBody({ type: UpdateVoucherDto })
+  update(@Param('code') code: string, @Body() voucherDto: UpdateVoucherDto) {
     return this.voucherService.update(code, voucherDto);
   }
 
   @Delete(':id')
-  delete(@Param('id') id: number) {
+  delete(@Param('id', ParseIntPipe) id: number) {
     return this.voucherService.delete(id);
   }
 }

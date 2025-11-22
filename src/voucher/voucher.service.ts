@@ -67,6 +67,36 @@ export class VoucherService {
       throw new NotFoundException('Voucher not found');
     }
 
+    if (updateVoucherDto.discountType !== undefined) {
+      if (
+        updateVoucherDto.discountType !== 'percentage' &&
+        updateVoucherDto.discountType !== 'fixed'
+      ) {
+        throw new BadRequestException(
+          `Voucher discount type must be either 'percentage' or 'fixed' for this voucher to be updated.`,
+        );
+      }
+      voucher.discountType = updateVoucherDto.discountType;
+    }
+
+    if (updateVoucherDto.usageLimit !== undefined) {
+      if (updateVoucherDto.usageLimit <= 0) {
+        throw new BadRequestException(
+          'Usage limit must be greater than zero for this voucher to be updated.',
+        );
+      }
+      voucher.usageLimit = updateVoucherDto.usageLimit;
+    }
+
+    if (updateVoucherDto.minOrderValue !== undefined) {
+      if (updateVoucherDto.minOrderValue < 0) {
+        throw new BadRequestException(
+          'Minimum order value cannot be negative for this voucher to be updated.',
+        );
+      }
+      voucher.minOrderValue = updateVoucherDto.minOrderValue;
+    }
+
     if (updateVoucherDto.discountValue !== undefined) {
       const value = updateVoucherDto.discountValue;
 
@@ -76,14 +106,34 @@ export class VoucherService {
         );
       }
 
-      // apply percentage rules
-      const finalDiscountType =
+      const updatedDiscountType =
         updateVoucherDto.discountType ?? voucher.discountType;
+      const updatedMinOrderValue =
+        updateVoucherDto.minOrderValue ?? voucher.minOrderValue;
 
-      if (finalDiscountType === 'percentage') {
+      // apply percentage voucher type rules
+      if (updatedDiscountType === 'percentage') {
         if (value < 1 || value > 100) {
           throw new BadRequestException(
-            'Percentage discount must be between 1 and 100 for this voucher to be updated',
+            'Percentage discount must be between 1 and 100 for this voucher to be updated.',
+          );
+        }
+      }
+
+      // apply fixed voucher type rules
+      if (updatedDiscountType === 'fixed') {
+        if (value < 1) {
+          throw new BadRequestException(
+            'Fixed discount must be greater than zero for this voucher to be updated.',
+          );
+        }
+        //  only valid when min order value is present.
+        if (
+          typeof updatedMinOrderValue === 'number' &&
+          value > updatedMinOrderValue
+        ) {
+          throw new BadRequestException(
+            `Fixed discount should be smaller than minimum order value (${updatedMinOrderValue}) for this voucher to be updated.`,
           );
         }
       }
@@ -106,20 +156,11 @@ export class VoucherService {
 
       if (exp <= new Date()) {
         throw new BadRequestException(
-          'expiration date must be a future date for this voucher to be updated.',
+          'Expiration date must be a future date for this voucher to be updated.',
         );
       }
 
       voucher.expirationDate = exp;
-    }
-
-    if (updateVoucherDto.minOrderValue !== undefined) {
-      if (updateVoucherDto.minOrderValue < 0) {
-        throw new BadRequestException(
-          'Minimum order value cannot be negative for this voucher to be updated',
-        );
-      }
-      voucher.minOrderValue = updateVoucherDto.minOrderValue;
     }
 
     return this.voucherRepo.save(voucher);
