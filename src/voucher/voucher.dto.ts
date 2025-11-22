@@ -6,14 +6,16 @@ import {
   IsOptional,
   IsDateString,
 } from 'class-validator';
+import { DiscountType } from './voucher.entity';
 
 export class CreateVoucherDto {
+  @IsOptional()
   @IsString()
   code: string;
 
   @IsString()
-  @IsEnum(['percentage', 'fixed'])
-  discountType: 'percentage' | 'fixed';
+  @IsEnum(DiscountType)
+  discountType: DiscountType;
 
   @IsNumber()
   @Min(0)
@@ -36,8 +38,8 @@ export class UpdateVoucherDto {
   code: string;
 
   @IsOptional()
-  @IsEnum(['percentage', 'fixed'])
-  discountType?: 'percentage' | 'fixed';
+  @IsEnum(DiscountType)
+  discountType?: DiscountType;
 
   @IsOptional()
   @IsNumber()
