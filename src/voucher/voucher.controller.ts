@@ -19,12 +19,14 @@ import {
 } from '@nestjs/common';
 import { VoucherService } from './voucher.service';
 import { CreateVoucherDto, UpdateVoucherDto } from './voucher.dto';
+import { Throttle } from '@nestjs/throttler';
 
 @ApiTags('Voucher')
 @Controller('voucher')
 export class VoucherController {
   constructor(private readonly voucherService: VoucherService) {}
 
+  @Throttle({ default: { limit: 10, ttl: 60_000 } }) // throttle to max. 10 times per minute per IP.
   @Post()
   @ApiOperation({ summary: 'Create a new voucher' })
   @ApiCreatedResponse({ description: 'Voucher created successfully.' })
@@ -48,6 +50,7 @@ export class VoucherController {
     return this.voucherService.findOne(id);
   }
 
+  @Throttle({ default: { limit: 10, ttl: 60_000 } }) // throttle to max. 10 times per minute per IP.
   @Patch(':code')
   @ApiOperation({ summary: 'Update voucher using code' })
   @ApiOkResponse({ description: 'Voucher updated successfully.' })
@@ -57,6 +60,7 @@ export class VoucherController {
     return this.voucherService.update(code, voucherDto);
   }
 
+  @Throttle({ default: { limit: 10, ttl: 60_000 } }) // throttle to max. 10 times per minute per IP.
   @Delete(':id')
   @ApiOperation({ summary: 'Delete voucher by ID' })
   @ApiNoContentResponse({ description: 'Voucher deleted successfully.' })

@@ -19,12 +19,14 @@ import {
 } from '@nestjs/common';
 import { PromotionService } from './promotion.service';
 import { CreatePromotionDto, UpdatePromotionDto } from './promotion.dto';
+import { Throttle } from '@nestjs/throttler';
 
 @ApiTags('Promotion')
 @Controller('promotion')
 export class PromotionController {
   constructor(private readonly promotionService: PromotionService) {}
 
+  @Throttle({ default: { limit: 10, ttl: 60_000 } }) // throttle to max. 10 times per minute per IP.
   @Post()
   @ApiOperation({ summary: 'Create a new promotion' })
   @ApiCreatedResponse({ description: 'Promotion created successfully.' })
@@ -50,6 +52,7 @@ export class PromotionController {
     return this.promotionService.findOne(id);
   }
 
+  @Throttle({ default: { limit: 10, ttl: 60_000 } }) // throttle to max. 10 times per minute per IP.
   @Patch(':code')
   @ApiOperation({ summary: 'Update promotion using code' })
   @ApiOkResponse({ description: 'Promotion updated successfully.' })
@@ -59,6 +62,7 @@ export class PromotionController {
     return this.promotionService.update(code, dto);
   }
 
+  @Throttle({ default: { limit: 10, ttl: 60_000 } }) // throttle to max. 10 times per minute per IP.
   @Delete(':id')
   @ApiOperation({ summary: 'Delete promotion by ID' })
   @ApiNoContentResponse({ description: 'Promotion deleted successfully.' })

@@ -20,12 +20,14 @@ import {
 import { OrderService } from './order.service';
 import { CreateOrderDto } from './order.dto';
 import { Order } from './order.entity';
+import { Throttle } from '@nestjs/throttler';
 
 @ApiTags('Orders')
 @Controller('order')
 export class OrderController {
   constructor(private readonly orderService: OrderService) {}
 
+  @Throttle({ default: { limit: 10, ttl: 60_000 } }) // throttle to max. 10 times per minute per IP.
   @Post()
   @ApiOperation({
     summary: 'Create a new order',
@@ -74,6 +76,7 @@ export class OrderController {
     return this.orderService.findOne(id);
   }
 
+  @Throttle({ default: { limit: 10, ttl: 60_000 } }) // throttle to max. 10 times per minute per IP.
   @Delete(':id')
   @ApiOperation({
     summary: 'Delete an order by ID',
