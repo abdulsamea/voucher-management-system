@@ -5,6 +5,7 @@ import { AppService } from './app.service';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { VoucherModule } from './voucher/voucher.module';
 import { PromotionModule } from './promotion/promotion.module';
+import { OrderModule } from './order/order.module';
 
 @Module({
   imports: [
@@ -16,6 +17,7 @@ import { PromotionModule } from './promotion/promotion.module';
     }),
     VoucherModule,
     PromotionModule,
+    OrderModule,
   ],
   controllers: [AppController],
   providers: [AppService],
