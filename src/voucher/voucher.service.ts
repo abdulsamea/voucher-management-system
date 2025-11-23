@@ -5,7 +5,7 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { Voucher } from './voucher.entity';
+import { Voucher, VoucherDiscountType } from './voucher.entity';
 import { CreateVoucherDto, UpdateVoucherDto } from './voucher.dto';
 import randomstring from 'randomstring';
 
@@ -19,6 +19,36 @@ export class VoucherService {
   ) {}
 
   async create(createVoucherDto: CreateVoucherDto): Promise<Voucher> {
+    const exp = new Date(createVoucherDto.expirationDate);
+    if (isNaN(exp.getTime())) {
+      throw new BadRequestException('Invalid expiration date.');
+    }
+    if (exp <= new Date()) {
+      throw new BadRequestException('Expiration date must be a future date.');
+    }
+
+    if (
+      typeof createVoucherDto.minOrderValue === 'number' &&
+      createVoucherDto.minOrderValue < 0
+    ) {
+      throw new BadRequestException('Minimum order value cannot be negative.');
+    }
+
+    if (createVoucherDto.usageLimit <= 0) {
+      throw new BadRequestException('Usage limit must be greater than zero.');
+    }
+
+    if (createVoucherDto.discountType === VoucherDiscountType.PERCENTAGE) {
+      if (
+        createVoucherDto.discountValue < 1 ||
+        createVoucherDto.discountValue > 100
+      ) {
+        throw new BadRequestException(
+          'Percentage discount must be between 1 and 100.',
+        );
+      }
+    }
+
     const code =
       createVoucherDto.code?.trim() ||
       VOUCHER_PREFIX + randomstring.generate(8).toUpperCase();
@@ -27,8 +57,8 @@ export class VoucherService {
       code,
       discountType: createVoucherDto.discountType,
       discountValue: Math.max(0, createVoucherDto.discountValue),
-      expirationDate: createVoucherDto.expirationDate,
-      usageLimit: Math.max(0, createVoucherDto.usageLimit),
+      expirationDate: exp,
+      usageLimit: createVoucherDto.usageLimit,
       minOrderValue: createVoucherDto.minOrderValue,
     });
 
@@ -113,7 +143,7 @@ export class VoucherService {
         updateVoucherDto.minOrderValue ?? voucher.minOrderValue;
 
       // apply percentage voucher type rules
-      if (updatedDiscountType === 'percentage') {
+      if (updatedDiscountType === VoucherDiscountType.PERCENTAGE) {
         if (value < 1 || value > 100) {
           throw new BadRequestException(
             'Percentage discount must be between 1 and 100 for this voucher to be updated.',
@@ -122,7 +152,7 @@ export class VoucherService {
       }
 
       // apply fixed voucher type rules
-      if (updatedDiscountType === 'fixed') {
+      if (updatedDiscountType === VoucherDiscountType.FIXED) {
         if (value < 1) {
           throw new BadRequestException(
             'Fixed discount must be greater than zero for this voucher to be updated.',

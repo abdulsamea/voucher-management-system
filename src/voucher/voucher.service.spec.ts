@@ -1,6 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { VoucherService } from './voucher.service';
-import { Voucher, DiscountType } from './voucher.entity';
+import { Voucher, VoucherDiscountType } from './voucher.entity';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { BadRequestException, NotFoundException } from '@nestjs/common';
@@ -10,7 +10,7 @@ import { CreateVoucherDto, UpdateVoucherDto } from './voucher.dto';
 const mockVoucher: Voucher = {
   id: 1,
   code: 'VHRABCDEFG8',
-  discountType: 'percentage' as DiscountType,
+  discountType: VoucherDiscountType.PERCENTAGE,
   discountValue: 10,
   expirationDate: new Date(Date.now() + 5000000),
   usageLimit: 10,
@@ -49,13 +49,12 @@ describe('VoucherService', () => {
 
   describe('create()', () => {
     it('should create voucher with provided code', async () => {
-      repo.findOne.mockResolvedValue(null);
       repo.create.mockReturnValue(mockVoucher);
       repo.save.mockResolvedValue(mockVoucher);
 
       const dto: CreateVoucherDto = {
         code: mockVoucher.code,
-        discountType: 'percentage' as DiscountType,
+        discountType: VoucherDiscountType.PERCENTAGE,
         discountValue: 10,
         expirationDate: mockVoucher.expirationDate.toISOString(),
         usageLimit: 10,
@@ -65,20 +64,25 @@ describe('VoucherService', () => {
       const result = await service.create(dto);
 
       expect(result.code).toBe(mockVoucher.code);
-      expect(repo.create).toHaveBeenCalledWith(expect.objectContaining(dto));
+      expect(repo.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          ...dto,
+          expirationDate: new Date(dto.expirationDate),
+        }),
+      );
       expect(repo.save).toHaveBeenCalled();
     });
 
     it('should auto-generate code if not provided', async () => {
-      repo.findOne.mockResolvedValue(null);
       repo.create.mockReturnValue({ ...mockVoucher });
       repo.save.mockResolvedValue({ ...mockVoucher, code: 'VHRABCDEFG8' });
 
-      const dto = {
-        discountType: 'percentage' as DiscountType,
+      const dto: CreateVoucherDto = {
+        discountType: VoucherDiscountType.PERCENTAGE,
         discountValue: 10,
         expirationDate: mockVoucher.expirationDate.toISOString(),
         usageLimit: 10,
+        minOrderValue: 50,
       };
 
       const result = await service.create(dto);
@@ -86,19 +90,72 @@ describe('VoucherService', () => {
     });
 
     it('should throw BadRequestException for duplicate code', async () => {
-      repo.findOne.mockResolvedValueOnce(null);
       repo.create.mockReturnValue(mockVoucher);
-      repo.save.mockRejectedValue({ code: '23505' }); // unique violation
+      repo.save.mockRejectedValue({ code: '23505' });
 
       await expect(
         service.create({
           code: mockVoucher.code,
-          discountType: 'percentage' as DiscountType,
+          discountType: VoucherDiscountType.PERCENTAGE,
           discountValue: 10,
           expirationDate: mockVoucher.expirationDate.toISOString(),
           usageLimit: 10,
         }),
       ).rejects.toThrow(BadRequestException);
+    });
+
+    // NEW TEST CASES ADDED
+
+    it('should throw BadRequestException if expiration date is invalid', async () => {
+      const dto = {
+        code: 'TEST1',
+        discountType: VoucherDiscountType.PERCENTAGE,
+        discountValue: 10,
+        expirationDate: 'not-a-date',
+        usageLimit: 10,
+        minOrderValue: 10,
+      };
+
+      await expect(service.create(dto)).rejects.toThrow(BadRequestException);
+    });
+
+    it('should throw BadRequestException if expiration date is not in future', async () => {
+      const dto = {
+        code: 'TEST1',
+        discountType: VoucherDiscountType.PERCENTAGE,
+        discountValue: 10,
+        expirationDate: new Date(Date.now() - 3600).toISOString(), // past date
+        usageLimit: 10,
+        minOrderValue: 10,
+      };
+
+      await expect(service.create(dto)).rejects.toThrow(BadRequestException);
+    });
+
+    it('should throw BadRequestException if minOrderValue is negative', async () => {
+      const dto = {
+        code: 'TEST1',
+        discountType: VoucherDiscountType.PERCENTAGE,
+        discountValue: 10,
+        expirationDate: mockVoucher.expirationDate.toISOString(),
+        usageLimit: 10,
+        minOrderValue: -10,
+      };
+
+      await expect(service.create(dto)).rejects.toThrow(BadRequestException);
+    });
+
+    it('should throw BadRequestException if usageLimit is zero or negative', async () => {
+      const dto = {
+        code: 'TEST1',
+        discountType: VoucherDiscountType.PERCENTAGE,
+        discountValue: 10,
+        expirationDate: mockVoucher.expirationDate.toISOString(),
+        usageLimit: 0,
+        minOrderValue: 10,
+      };
+
+      await expect(service.create(dto)).rejects.toThrow(BadRequestException);
     });
   });
 
@@ -181,7 +238,7 @@ describe('VoucherService', () => {
     it('should throw for percentage discount outside 1–100', async () => {
       repo.findOne.mockResolvedValue({
         ...mockVoucher,
-        discountType: 'percentage' as DiscountType,
+        discountType: VoucherDiscountType.PERCENTAGE,
       });
 
       await expect(
@@ -196,7 +253,7 @@ describe('VoucherService', () => {
     it('should throw for fixed discount > minOrderValue', async () => {
       repo.findOne.mockResolvedValue({
         ...mockVoucher,
-        discountType: 'fixed' as DiscountType,
+        discountType: VoucherDiscountType.FIXED,
         minOrderValue: 100,
       });
 

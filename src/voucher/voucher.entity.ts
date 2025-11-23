@@ -6,7 +6,7 @@ import {
   Index,
 } from 'typeorm';
 
-export enum DiscountType {
+export enum VoucherDiscountType {
   PERCENTAGE = 'percentage',
   FIXED = 'fixed',
 }
@@ -20,8 +20,8 @@ export class Voucher {
   @Column({ length: 100, unique: true })
   code: string;
 
-  @Column({ type: 'enum', enum: DiscountType })
-  discountType: DiscountType;
+  @Column({ type: 'enum', enum: VoucherDiscountType })
+  discountType: VoucherDiscountType;
 
   @Column({ type: 'float' })
   discountValue: number;

@@ -7,7 +7,7 @@ import {
   IsOptional,
   IsDateString,
 } from 'class-validator';
-import { DiscountType } from './voucher.entity';
+import { VoucherDiscountType } from './voucher.entity';
 
 export class CreateVoucherDto {
   @ApiProperty({ example: 'VOUCH123', description: 'Voucher code' })
@@ -17,8 +17,8 @@ export class CreateVoucherDto {
 
   @ApiProperty({ enum: ['percentage', 'fixed'] })
   @IsString()
-  @IsEnum(DiscountType)
-  discountType: DiscountType;
+  @IsEnum(VoucherDiscountType)
+  discountType: VoucherDiscountType;
 
   @ApiProperty({ example: 10 })
   @IsNumber()
@@ -43,8 +43,8 @@ export class CreateVoucherDto {
 export class UpdateVoucherDto {
   @ApiPropertyOptional({ enum: ['percentage', 'fixed'] })
   @IsOptional()
-  @IsEnum(DiscountType)
-  discountType?: DiscountType;
+  @IsEnum(VoucherDiscountType)
+  discountType?: VoucherDiscountType;
 
   @ApiPropertyOptional({ example: 10 })
   @IsOptional()
