@@ -8,7 +8,7 @@ import {
 import { Voucher } from '../voucher/voucher.entity';
 import { Promotion } from '../promotion/promotion.entity';
 
-@Entity()
+@Entity({ name: 'orders' })
 export class Order {
   @PrimaryGeneratedColumn()
   id: number;
