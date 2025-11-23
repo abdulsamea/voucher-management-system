@@ -56,20 +56,6 @@ describe('PromotionService', () => {
     expect(result).toEqual(mockPromotion);
   });
 
-  it('should throw if code already exists', async () => {
-    repo.findOne.mockResolvedValue(mockPromotion);
-
-    await expect(
-      service.create({
-        code: 'PROMO123',
-        discountType: PromotionDiscountType.FIXED,
-        discountValue: 20,
-        expirationDate: new Date(Date.now() + 86400000).toISOString(),
-        usageLimit: 10,
-      }),
-    ).rejects.toThrow(BadRequestException);
-  });
-
   it('should reject expired expirationDate', async () => {
     await expect(
       service.create({

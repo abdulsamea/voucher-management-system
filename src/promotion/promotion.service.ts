@@ -19,15 +19,6 @@ export class PromotionService {
   ) {}
 
   async create(createPromotionDto: CreatePromotionDto): Promise<Promotion> {
-    const existing = await this.promotionRepo.findOne({
-      where: { code: createPromotionDto.code },
-    });
-
-    if (existing) {
-      throw new BadRequestException(
-        'Promotion code already exists with the same code',
-      );
-    }
     const code =
       createPromotionDto.code?.trim() ||
       PROMOTION_PREFIX + randomstring.generate(8).toUpperCase();
