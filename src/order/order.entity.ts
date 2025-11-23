@@ -13,11 +13,8 @@ export class Order {
   @PrimaryGeneratedColumn()
   id: number;
 
-  @Column({ type: 'text', array: true })
-  products: string[];
-
-  @Column('float')
-  orderValue: number;
+  @Column({ type: 'jsonb', nullable: false })
+  products: { sku: string; price: number }[];
 
   @ManyToOne(() => Voucher, { nullable: true })
   @JoinColumn()

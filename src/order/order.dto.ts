@@ -1,25 +1,36 @@
-import { IsArray, IsNumber, IsOptional, IsString, Min } from 'class-validator';
+import {
+  IsArray,
+  IsNumber,
+  IsOptional,
+  IsString,
+  Min,
+  ValidateNested,
+} from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+
+class OrderProductDto {
+  @ApiProperty({ example: 'ITEM001', description: 'Product SKU' })
+  @IsString()
+  sku: string;
+
+  @ApiProperty({ example: 199.99, description: 'Product price' })
+  @IsNumber()
+  @Min(0)
+  price: number;
+}
 
 export class CreateOrderDto {
   @ApiProperty({
-    type: [String],
-    description: 'List of product IDs or names included in the order',
-    example: ['P001', 'P002'],
+    type: [OrderProductDto],
+    description: 'List of products with SKU and price',
+    example: [
+      { sku: 'ITEM001', price: 200 },
+      { sku: 'ITEM002', price: 150 },
+    ],
   })
   @IsArray()
-  @IsString({ each: true })
-  products: string[];
-
-  @ApiProperty({
-    type: Number,
-    description: 'Total value of the order before discounts',
-    example: 250,
-    minimum: 1,
-  })
-  @IsNumber()
-  @Min(1)
-  orderValue: number;
+  @ValidateNested({ each: true })
+  products: OrderProductDto[];
 
   @ApiPropertyOptional({
     type: String,

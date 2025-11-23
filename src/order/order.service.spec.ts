@@ -21,8 +21,10 @@ const mockRepo = () => ({
 
 const order: Order = {
   id: 0,
-  products: ['p1', 'p2'],
-  orderValue: 100,
+  products: [
+    { sku: 'S1', price: 100 },
+    { sku: 'S2', price: 200 },
+  ],
   voucher: null,
   promotion: null,
   discountApplied: 0,
@@ -120,7 +122,7 @@ describe('OrderService', () => {
 
       expect(orderRepo.create).toHaveBeenCalledWith(
         expect.objectContaining({
-          discountApplied: 10, // 10% of 100
+          discountApplied: 30, // 10% of entire product order i.e 30%
         }),
       );
     });
@@ -145,6 +147,27 @@ describe('OrderService', () => {
       expect(orderRepo.create).toHaveBeenCalledWith(
         expect.objectContaining({ discountApplied: 25 }),
       );
+    });
+
+    it(`should not apply voucher to orders below the voucher's minimum order value`, async () => {
+      const voucher: Voucher = {
+        id: 1,
+        code: 'V1',
+        expirationDate: new Date(Date.now() + 10000),
+        usageLimit: 1,
+        discountType: VoucherDiscountType.FIXED,
+        discountValue: 25,
+        minOrderValue: 400,
+      };
+      voucherRepo.findOne.mockResolvedValue(voucher);
+
+      voucherRepo.save.mockResolvedValue(voucher);
+      orderRepo.create.mockReturnValue(order);
+      orderRepo.save.mockResolvedValue(order);
+
+      await expect(
+        service.create({ ...order, voucherCode: 'V1' } as any),
+      ).rejects.toThrow(BadRequestException);
     });
 
     // below test cases handle promotion validation rules.
@@ -249,7 +272,7 @@ describe('OrderService', () => {
       } as any);
 
       expect(orderRepo.create).toHaveBeenCalledWith(
-        expect.objectContaining({ discountApplied: 50 }), // capped at 50% of 100
+        expect.objectContaining({ discountApplied: 60 }), // capped at 50% of all products in an order
       );
     });
   });

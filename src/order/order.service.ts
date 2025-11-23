@@ -19,6 +19,20 @@ export class OrderService {
     @InjectRepository(Promotion) private promoRepo: Repository<Promotion>,
   ) {}
 
+  private parseJsonInput<T>(value: any, fieldName: string): T {
+    if (Array.isArray(value) || typeof value === 'object') {
+      return value as T; // already a JSON
+    }
+    if (typeof value === 'string') {
+      try {
+        return JSON.parse(value) as T;
+      } catch {
+        throw new BadRequestException(`Invalid JSON format for ${fieldName}`);
+      }
+    }
+    throw new BadRequestException(`Invalid type for ${fieldName}`);
+  }
+
   private validateExpiry(expirationDate: Date) {
     if (new Date(expirationDate) < new Date()) {
       throw new BadRequestException('Voucher/Promotion has expired');
@@ -50,19 +64,33 @@ export class OrderService {
     let voucher: Voucher | null = null;
     let promotion: Promotion | null = null;
 
-    const orderValue = dto.orderValue;
+    // parse products safely
+    const products = this.parseJsonInput<{ sku: string; price: number }[]>(
+      dto.products,
+      'products',
+    );
 
-    // apply voucher to the order.
+    // compute order value from products
+    const orderValue = products.reduce((sum, p) => sum + p.price, 0);
+
+    // apply voucher
     if (dto.voucherCode) {
       voucher = await this.voucherRepo.findOne({
         where: { code: dto.voucherCode },
       });
-
       if (!voucher) throw new NotFoundException('Voucher not found');
 
       this.validateExpiry(voucher.expirationDate);
       this.validateUsageLimit(voucher);
 
+      // enforce min order value rule
+      if (voucher.minOrderValue && orderValue < voucher.minOrderValue) {
+        throw new BadRequestException(
+          `Minimum order value must be ${voucher.minOrderValue} to apply this voucher.`,
+        );
+      }
+
+      // apply discount
       if (voucher.discountType === 'percentage') {
         discountApplied += (orderValue * voucher.discountValue) / 100;
       } else {
@@ -73,25 +101,44 @@ export class OrderService {
       await this.voucherRepo.save(voucher);
     }
 
-    // apply promotion to the order.
+    // apply promotion
     if (dto.promotionCode) {
       promotion = await this.promoRepo.findOne({
         where: { code: dto.promotionCode },
       });
-
       if (!promotion) throw new NotFoundException('Promotion not found');
 
       this.validateExpiry(promotion.expirationDate);
       this.validateUsageLimit(promotion);
-      this.validateEligibleProducts(dto.products, promotion.eligibleItems);
 
-      // prevent double use with voucher (only in case both are same).
+      // ensure voucher & promotion code are not same
       if (voucher && voucher.code === promotion.code) {
         throw new BadRequestException('Voucher and Promotion cannot be same');
       }
 
+      // ensure promotion has eligible items list defined
+      if (!promotion.eligibleItems || promotion.eligibleItems.length === 0) {
+        throw new BadRequestException(
+          'Promotion cannot be applied because it does not define eligible items',
+        );
+      }
+
+      // find first eligible product index (apply promotion only once)
+      const eligibleIndex = products.findIndex((p) =>
+        promotion!.eligibleItems!.includes(p.sku),
+      );
+
+      if (eligibleIndex === -1) {
+        throw new BadRequestException(
+          'Promotion not applicable to any product in this order',
+        );
+      }
+
+      // only apply promotion on the FIRST eligible product
+      const eligibleProduct = products[eligibleIndex];
       if (promotion.discountType === 'percentage') {
-        discountApplied += (orderValue * promotion.discountValue) / 100;
+        discountApplied +=
+          (eligibleProduct.price * promotion.discountValue) / 100;
       } else {
         discountApplied += promotion.discountValue;
       }
@@ -100,18 +147,18 @@ export class OrderService {
       await this.promoRepo.save(promotion);
     }
 
-    // handle max discount of 50%.
+    // limit max discount to 50% (this is applied to overall order, not individual products)
     const maxAllowed = orderValue * 0.5;
     if (discountApplied > maxAllowed) {
       discountApplied = maxAllowed;
     }
 
+    // save order
     const order = this.orderRepo.create({
-      products: dto.products,
-      orderValue,
+      products,
       discountApplied,
-      voucher: voucher,
-      promotion: promotion,
+      voucher,
+      promotion,
     });
 
     return this.orderRepo.save(order);
