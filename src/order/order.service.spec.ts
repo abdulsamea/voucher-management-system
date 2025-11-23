@@ -23,6 +23,7 @@ const order: Order = {
   id: 0,
   products: [
     { sku: 'S1', price: 100 },
+    { sku: 'S1', price: 100 },
     { sku: 'S2', price: 200 },
   ],
   voucher: null,
@@ -118,11 +119,11 @@ describe('OrderService', () => {
       orderRepo.create.mockReturnValue(order);
       orderRepo.save.mockResolvedValue(order);
 
-      await service.create({ ...order, voucherCode: 'V1' } as any);
+      await service.create({ ...order, voucherCode: 'V1' } as CreateOrderDto);
 
       expect(orderRepo.create).toHaveBeenCalledWith(
         expect.objectContaining({
-          discountApplied: 30, // 10% of entire product order i.e 30%
+          discountApplied: 40, // 10% of entire product order i.e 40%
         }),
       );
     });
@@ -157,7 +158,7 @@ describe('OrderService', () => {
         usageLimit: 1,
         discountType: VoucherDiscountType.FIXED,
         discountValue: 25,
-        minOrderValue: 400,
+        minOrderValue: 401,
       };
       voucherRepo.findOne.mockResolvedValue(voucher);
 
@@ -273,6 +274,33 @@ describe('OrderService', () => {
 
       expect(orderRepo.create).toHaveBeenCalledWith(
         expect.objectContaining({ discountApplied: 60 }), // capped at 50% of all products in an order
+      );
+    });
+
+    it('should apply promotion to only 1 product in an order even if multiple eliglible orders are present', async () => {
+      const promotion: Promotion = {
+        id: 1,
+        code: 'X',
+        discountType: PromotionDiscountType.FIXED,
+        discountValue: 10,
+        expirationDate: new Date(Date.now() + 10000),
+        usageLimit: 2,
+        eligibleItems: ['S1', 'S2'],
+      };
+
+      promoRepo.findOne.mockResolvedValue(promotion);
+      promoRepo.save.mockResolvedValue(promotion);
+
+      orderRepo.create.mockReturnValue(order);
+      orderRepo.save.mockResolvedValue(order);
+
+      await service.create({
+        ...order,
+        promotionCode: 'X',
+      } as CreateOrderDto);
+
+      expect(orderRepo.create).toHaveBeenCalledWith(
+        expect.objectContaining({ discountApplied: 10 }),
       );
     });
   });
