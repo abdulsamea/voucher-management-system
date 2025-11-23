@@ -4,10 +4,10 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, Not } from 'typeorm';
+import { Repository } from 'typeorm';
 import { Voucher } from './voucher.entity';
 import { CreateVoucherDto, UpdateVoucherDto } from './voucher.dto';
-import { nanoid } from 'nanoid';
+import randomstring from 'randomstring';
 
 const VOUCHER_PREFIX = 'VHR';
 
@@ -20,7 +20,8 @@ export class VoucherService {
 
   async create(createVoucherDto: CreateVoucherDto): Promise<Voucher> {
     const code =
-      createVoucherDto.code?.trim() || VOUCHER_PREFIX + nanoid(8).toUpperCase();
+      createVoucherDto.code?.trim() ||
+      VOUCHER_PREFIX + randomstring.generate(8).toUpperCase();
 
     const voucher = this.voucherRepo.create({
       code,

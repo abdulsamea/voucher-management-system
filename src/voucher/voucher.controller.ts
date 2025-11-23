@@ -1,4 +1,4 @@
-import { ApiBody, ApiTags } from '@nestjs/swagger';
+import { ApiTags } from '@nestjs/swagger';
 import {
   Controller,
   Post,

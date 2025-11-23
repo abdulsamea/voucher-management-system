@@ -13,7 +13,7 @@ export class CreateVoucherDto {
   @ApiProperty({ example: 'VOUCH123', description: 'Voucher code' })
   @IsOptional()
   @IsString()
-  code: string;
+  code?: string;
 
   @ApiProperty({ enum: ['percentage', 'fixed'] })
   @IsString()
