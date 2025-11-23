@@ -51,7 +51,7 @@ export class VoucherService {
 
   async findOne(id: number): Promise<Voucher> {
     const voucher = await this.voucherRepo.findOne({ where: { id } });
-    if (!voucher) throw new NotFoundException('Voucher not found');
+    if (!voucher) throw new NotFoundException('Voucher not found.');
     return voucher;
   }
 
@@ -167,11 +167,12 @@ export class VoucherService {
     return this.voucherRepo.save(voucher);
   }
 
-  async delete(id: number): Promise<void> {
+  async delete(id: number): Promise<Voucher> {
     const voucher = await this.findOne(id);
 
     try {
-      await this.voucherRepo.remove(voucher);
+      const deletedVoucher = await this.voucherRepo.remove(voucher);
+      return deletedVoucher;
     } catch (err: any) {
       throw new BadRequestException(
         'Cannot remove voucher — it may be currently in use by existing orders.',

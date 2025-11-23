@@ -41,9 +41,6 @@ export class CreateVoucherDto {
 }
 
 export class UpdateVoucherDto {
-  @IsString()
-  code: string;
-
   @ApiPropertyOptional({ enum: ['percentage', 'fixed'] })
   @IsOptional()
   @IsEnum(DiscountType)
