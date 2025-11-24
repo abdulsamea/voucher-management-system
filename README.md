@@ -91,7 +91,7 @@ DATABASE_URL=postgres://postgres:<password>@<host>:5432/postgres
 Generate migration files based on entity changes:
 
 ```
-npm run migration:generate src/migrations/Migration
+npm run migration:generate
 ```
 
 Run pending migrations:
