@@ -13,7 +13,7 @@ The project includes full **Swagger API documentation**, **Supabase PostgreSQL i
 - Allows creation, update, and deletion of **vouchers** and **promotions** with flexible discount rules.
 - Creates **orders** while safely applying voucher & promotion business logic:
   - Expiry validation
-  - Usage limit count-down
+  - Usage limit tracking for promotions and vouchers
   - Minimum order value restrictions
   - Eligible SKU handling for promotions
   - Max discount cap of 50% of order value
