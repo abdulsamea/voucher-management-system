@@ -18,7 +18,7 @@ The project includes full **Swagger API documentation**, **Supabase PostgreSQL i
   - Eligible SKU handling for promotions
   - Max discount cap of 50% of order value
 
-- Ensures **atomic updates** for order creation and voucher / using database transactions so no partial order creation occurs.
+- Ensures **atomic updates** for order creation and voucher / promotion using database transactions so no partial order creation occurs.
 - Generates a complete **Swagger UI** to test APIs.
 - All the above functionalities are **only** accessible after **JST based Authentication** is successful.
 
