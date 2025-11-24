@@ -110,11 +110,11 @@ npm run migration:revert
 
 ## Modules Overview
 
-| Module    | Description                                                                                                       |
-| --------- | ----------------------------------------------------------------------------------------------------------------- |
-| Voucher   | Manages voucher lifecycle with discount rules, expiry validation, min order restriction, and usage limit tracking |
-| Promotion | Manages promotion lifecycle with eligible SKUs validation, expiry rules, and usage deduction                      |
-| Orders    | Creates orders with transaction-safe business logic applying vouchers and promotions                              |
+| Module    | Description                                                                                                                                           |
+| --------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Voucher   | Manages voucher CRUD operations with discount rules, expiry validation, min order restriction, and usage limit tracking along with related test cases |
+| Promotion | Manages promotion CRUD operations with eligible SKUs validation, expiry rules, and usage deduction along with related test cases                      |
+| Orders    | Creates orders with transaction-safe business logic applying vouchers and promotions along with related test cases                                    |
 
 ---
 
