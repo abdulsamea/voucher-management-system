@@ -24,15 +24,15 @@ The project includes full **Swagger API documentation**, **Supabase PostgreSQL i
 
 ### Architecture components
 
-| Component           | Responsibility                    |
-| ------------------- | --------------------------------- |
-| NestJS              | Backend REST API                  |
-| TypeORM             | Database ORM & migrations         |
-| Supabase PostgreSQL | Persistent storage                |
-| Throttler           | Rate limiting per IP              |
-| JWT Auth            | Authentication and API protection |
-| Swagger             | OpenAPI documentation UI          |
-| Render              | Cloud deployment                  |
+| Component           | Responsibility                                                                                                                                               |
+| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| NestJS              | Backend REST API                                                                                                                                             |
+| TypeORM             | Database ORM & migrations                                                                                                                                    |
+| Supabase PostgreSQL | Persistent storage                                                                                                                                           |
+| Throttler           | Rate limiting per IP (**50** API calls for `Get` request per minute per IP and **10** API calls for `POST`, `DELETE` and `PATCH` requests per minute per IP) |
+| JWT Auth            | Authentication and API protection                                                                                                                            |
+| Swagger             | OpenAPI documentation UI                                                                                                                                     |
+| Render              | Cloud deployment                                                                                                                                             |
 
 ---
 
