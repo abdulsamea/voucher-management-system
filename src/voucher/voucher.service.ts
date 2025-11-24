@@ -18,36 +18,78 @@ export class VoucherService {
     private voucherRepo: Repository<Voucher>,
   ) {}
 
-  async create(createVoucherDto: CreateVoucherDto): Promise<Voucher> {
-    const exp = new Date(createVoucherDto.expirationDate);
+  private validateExpiration(expirationDate: string | Date) {
+    const exp = new Date(expirationDate);
     if (isNaN(exp.getTime())) {
       throw new BadRequestException('Invalid expiration date.');
     }
     if (exp <= new Date()) {
       throw new BadRequestException('Expiration date must be a future date.');
     }
+    return exp;
+  }
 
+  private validateVoucherType(voucherType: string) {
     if (
-      typeof createVoucherDto.minOrderValue === 'number' &&
-      createVoucherDto.minOrderValue < 0
+      voucherType !== VoucherDiscountType.FIXED &&
+      voucherType !== VoucherDiscountType.PERCENTAGE
     ) {
-      throw new BadRequestException('Minimum order value cannot be negative.');
+      throw new BadRequestException(
+        `Voucher type must be either ${VoucherDiscountType.FIXED} or ${VoucherDiscountType.PERCENTAGE}`,
+      );
     }
+  }
 
-    if (createVoucherDto.usageLimit <= 0) {
+  private validateUsageLimit(limit: number) {
+    if (typeof limit !== 'number' || limit <= 0) {
       throw new BadRequestException('Usage limit must be greater than zero.');
     }
+  }
 
-    if (createVoucherDto.discountType === VoucherDiscountType.PERCENTAGE) {
-      if (
-        createVoucherDto.discountValue < 1 ||
-        createVoucherDto.discountValue > 100
-      ) {
+  private validateMinOrderValue(value: number | undefined) {
+    if (typeof value === 'number' && value < 0) {
+      throw new BadRequestException('Minimum order value cannot be negative.');
+    }
+  }
+
+  private validateDiscount(
+    type: VoucherDiscountType,
+    value: number,
+    minOrderValue: number | null | undefined,
+  ) {
+    if (value <= 0) {
+      throw new BadRequestException('Discount value must be positive.');
+    }
+
+    if (type === VoucherDiscountType.PERCENTAGE) {
+      if (value < 1 || value > 100) {
         throw new BadRequestException(
           'Percentage discount must be between 1 and 100.',
         );
       }
     }
+
+    if (type === VoucherDiscountType.FIXED) {
+      if (typeof minOrderValue === 'number' && value > minOrderValue) {
+        throw new BadRequestException(
+          `Fixed discount should be smaller than minimum order value (${minOrderValue}).`,
+        );
+      }
+    }
+  }
+
+  async create(createVoucherDto: CreateVoucherDto): Promise<Voucher> {
+    this.validateVoucherType(createVoucherDto.discountType);
+    const expirationDate = this.validateExpiration(
+      createVoucherDto.expirationDate,
+    );
+    this.validateMinOrderValue(createVoucherDto.minOrderValue);
+    this.validateUsageLimit(createVoucherDto.usageLimit);
+    this.validateDiscount(
+      createVoucherDto.discountType,
+      createVoucherDto.discountValue,
+      createVoucherDto.minOrderValue,
+    );
 
     const code =
       createVoucherDto.code?.trim() ||
@@ -56,8 +98,8 @@ export class VoucherService {
     const voucher = this.voucherRepo.create({
       code,
       discountType: createVoucherDto.discountType,
-      discountValue: Math.max(0, createVoucherDto.discountValue),
-      expirationDate: exp,
+      discountValue: createVoucherDto.discountValue,
+      expirationDate,
       usageLimit: createVoucherDto.usageLimit,
       minOrderValue: createVoucherDto.minOrderValue,
     });
@@ -89,109 +131,42 @@ export class VoucherService {
     code: string,
     updateVoucherDto: UpdateVoucherDto,
   ): Promise<Voucher> {
-    const trimmedVoucherCode = code.trim();
     const voucher = await this.voucherRepo.findOne({
-      where: { code: trimmedVoucherCode },
+      where: { code: code.trim() },
     });
+    if (!voucher) throw new NotFoundException('Voucher not found');
 
-    if (!voucher) {
-      throw new NotFoundException('Voucher not found');
-    }
+    const updatedType = updateVoucherDto.discountType ?? voucher.discountType;
+    this.validateVoucherType(updatedType);
 
-    if (updateVoucherDto.discountType !== undefined) {
-      if (
-        updateVoucherDto.discountType !== 'percentage' &&
-        updateVoucherDto.discountType !== 'fixed'
-      ) {
-        throw new BadRequestException(
-          `Voucher discount type must be either 'percentage' or 'fixed' for this voucher to be updated.`,
-        );
-      }
-      voucher.discountType = updateVoucherDto.discountType;
+    const updatedMinOrder =
+      updateVoucherDto.minOrderValue ?? voucher.minOrderValue;
+    const updatedDiscount =
+      updateVoucherDto.discountValue ?? voucher.discountValue;
+
+    if (updateVoucherDto.expirationDate !== undefined) {
+      voucher.expirationDate = this.validateExpiration(
+        updateVoucherDto.expirationDate,
+      );
     }
 
     if (updateVoucherDto.usageLimit !== undefined) {
-      if (updateVoucherDto.usageLimit <= 0) {
-        throw new BadRequestException(
-          'Usage limit must be greater than zero for this voucher to be updated.',
-        );
-      }
+      this.validateUsageLimit(updateVoucherDto.usageLimit);
       voucher.usageLimit = updateVoucherDto.usageLimit;
     }
 
     if (updateVoucherDto.minOrderValue !== undefined) {
-      if (updateVoucherDto.minOrderValue < 0) {
-        throw new BadRequestException(
-          'Minimum order value cannot be negative for this voucher to be updated.',
-        );
-      }
+      this.validateMinOrderValue(updateVoucherDto.minOrderValue);
       voucher.minOrderValue = updateVoucherDto.minOrderValue;
     }
 
-    if (updateVoucherDto.discountValue !== undefined) {
-      const value = updateVoucherDto.discountValue;
-
-      if (value <= 0) {
-        throw new BadRequestException(
-          'Discount value must be positive for this voucher to be updated.',
-        );
-      }
-
-      const updatedDiscountType =
-        updateVoucherDto.discountType ?? voucher.discountType;
-      const updatedMinOrderValue =
-        updateVoucherDto.minOrderValue ?? voucher.minOrderValue;
-
-      // apply percentage voucher type rules
-      if (updatedDiscountType === VoucherDiscountType.PERCENTAGE) {
-        if (value < 1 || value > 100) {
-          throw new BadRequestException(
-            'Percentage discount must be between 1 and 100 for this voucher to be updated.',
-          );
-        }
-      }
-
-      // apply fixed voucher type rules
-      if (updatedDiscountType === VoucherDiscountType.FIXED) {
-        if (value < 1) {
-          throw new BadRequestException(
-            'Fixed discount must be greater than zero for this voucher to be updated.',
-          );
-        }
-        //  only valid when min order value is present.
-        if (
-          typeof updatedMinOrderValue === 'number' &&
-          value > updatedMinOrderValue
-        ) {
-          throw new BadRequestException(
-            `Fixed discount should be smaller than minimum order value (${updatedMinOrderValue}) for this voucher to be updated.`,
-          );
-        }
-      }
-
-      voucher.discountValue = value;
-    }
-
-    if (updateVoucherDto.discountValue !== undefined) {
-      voucher.discountValue = updateVoucherDto.discountValue;
-    }
-
-    if (updateVoucherDto.expirationDate !== undefined) {
-      const exp = new Date(updateVoucherDto.expirationDate);
-
-      if (isNaN(exp.getTime())) {
-        throw new BadRequestException(
-          'Invalid expiration date for this voucher.',
-        );
-      }
-
-      if (exp <= new Date()) {
-        throw new BadRequestException(
-          'Expiration date must be a future date for this voucher to be updated.',
-        );
-      }
-
-      voucher.expirationDate = exp;
+    if (
+      updateVoucherDto.discountValue !== undefined ||
+      updateVoucherDto.discountType !== undefined
+    ) {
+      this.validateDiscount(updatedType, updatedDiscount, updatedMinOrder);
+      voucher.discountType = updatedType;
+      voucher.discountValue = updatedDiscount;
     }
 
     return this.voucherRepo.save(voucher);
@@ -201,9 +176,8 @@ export class VoucherService {
     const voucher = await this.findOne(id);
 
     try {
-      const deletedVoucher = await this.voucherRepo.remove(voucher);
-      return deletedVoucher;
-    } catch (err: any) {
+      return await this.voucherRepo.remove(voucher);
+    } catch {
       throw new BadRequestException(
         'Cannot remove voucher — it may be currently in use by existing orders.',
       );

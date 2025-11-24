@@ -10,7 +10,6 @@ async function bootstrap() {
       'API documentation for orders, voucher & promotion management',
     )
     .setVersion('1.0')
-    .addBearerAuth()
     .build();
 
   const document = SwaggerModule.createDocument(app, config);
