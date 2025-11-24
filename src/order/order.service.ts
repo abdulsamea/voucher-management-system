@@ -32,20 +32,22 @@ export class OrderService {
     }
   }
 
-  async create(dto: CreateOrderDto): Promise<Order> {
+  async create(createOrderdto: CreateOrderDto): Promise<Order> {
     return this.dataSource.transaction(async (manager) => {
       let discountApplied = 0;
       let voucher: Voucher | null = null;
       let promotion: Promotion | null = null;
+      let isVoucherCodeValidated: boolean = false;
+      let isPromotionCodeValidated: boolean = false;
 
-      const products = dto.products;
+      const products = createOrderdto.products;
 
       const orderValue = products.reduce((sum, p) => sum + p.price, 0);
 
       // apply voucher validations if applicable.
-      if (dto.voucherCode) {
+      if (createOrderdto.voucherCode) {
         voucher = await manager.getRepository(Voucher).findOne({
-          where: { code: dto.voucherCode },
+          where: { code: createOrderdto.voucherCode },
         });
         if (!voucher) throw new NotFoundException('Voucher not found');
 
@@ -63,13 +65,14 @@ export class OrderService {
             ? (orderValue * voucher.discountValue) / 100
             : voucher.discountValue;
 
+        isVoucherCodeValidated = true;
         voucher.usageLimit -= 1;
       }
 
       // apply promotion validations if applicable.
-      if (dto.promotionCode) {
+      if (createOrderdto.promotionCode) {
         promotion = await manager.getRepository(Promotion).findOne({
-          where: { code: dto.promotionCode },
+          where: { code: createOrderdto.promotionCode },
         });
         if (!promotion) throw new NotFoundException('Promotion not found');
 
@@ -101,6 +104,7 @@ export class OrderService {
             ? (eligibleProduct.price * promotion.discountValue) / 100
             : promotion.discountValue;
 
+        isPromotionCodeValidated = true;
         promotion.usageLimit -= 1;
       }
 
@@ -117,8 +121,12 @@ export class OrderService {
       });
 
       // only update usage limits of voucher and promotions if order is created and after all validations.
-      if (voucher) await manager.getRepository(Voucher).save(voucher);
-      if (promotion) await manager.getRepository(Promotion).save(promotion);
+      if (voucher && isVoucherCodeValidated) {
+        await manager.getRepository(Voucher).save(voucher);
+      }
+      if (promotion && isPromotionCodeValidated) {
+        await manager.getRepository(Promotion).save(promotion);
+      }
       return manager.getRepository(Order).save(order);
     });
   }

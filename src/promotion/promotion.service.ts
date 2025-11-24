@@ -86,23 +86,26 @@ export class PromotionService {
     return type as PromotionDiscountType;
   }
 
-  async create(dto: CreatePromotionDto): Promise<Promotion> {
+  async create(createPromotionDto: CreatePromotionDto): Promise<Promotion> {
     const code =
-      dto.code?.trim() ||
+      createPromotionDto.code?.trim() ||
       PROMOTION_PREFIX + randomstring.generate(8).toUpperCase();
 
-    const expiration = this.validateExpiration(dto.expirationDate);
+    const expiration = this.validateExpiration(
+      createPromotionDto.expirationDate,
+    );
     const discountType =
-      this.validateDiscountType(dto.discountType) ?? dto.discountType;
+      this.validateDiscountType(createPromotionDto.discountType) ??
+      createPromotionDto.discountType;
     const discountValue = this.validateDiscount(
       discountType,
-      dto.discountValue,
+      createPromotionDto.discountValue,
     );
-    const usageLimit = this.validateUsageLimit(dto.usageLimit);
+    const usageLimit = this.validateUsageLimit(createPromotionDto.usageLimit);
 
     const promotion = this.promotionRepo.create({
       code,
-      eligibleSkus: dto.eligibleSkus,
+      eligibleSkus: createPromotionDto.eligibleSkus,
       discountType,
       discountValue,
       expirationDate: expiration,
@@ -132,7 +135,10 @@ export class PromotionService {
     return promo;
   }
 
-  async update(code: string, dto: UpdatePromotionDto): Promise<Promotion> {
+  async update(
+    code: string,
+    updatePromotionDto: UpdatePromotionDto,
+  ): Promise<Promotion> {
     const trimmedCode = code.trim();
     const promo = await this.promotionRepo.findOne({
       where: { code: trimmedCode },
@@ -142,30 +148,34 @@ export class PromotionService {
       throw new NotFoundException('Promotion not found');
     }
 
-    if (dto.eligibleSkus !== undefined) {
-      promo.eligibleSkus = dto.eligibleSkus;
+    if (updatePromotionDto.eligibleSkus !== undefined) {
+      promo.eligibleSkus = updatePromotionDto.eligibleSkus;
     }
 
-    if (dto.discountType !== undefined) {
-      promo.discountType = this.validateDiscountType(dto.discountType)!;
+    if (updatePromotionDto.discountType !== undefined) {
+      promo.discountType = this.validateDiscountType(
+        updatePromotionDto.discountType,
+      )!;
     }
 
-    if (dto.usageLimit !== undefined) {
-      promo.usageLimit = this.validateUsageLimit(dto.usageLimit);
+    if (updatePromotionDto.usageLimit !== undefined) {
+      promo.usageLimit = this.validateUsageLimit(updatePromotionDto.usageLimit);
     }
 
-    if (dto.discountValue !== undefined) {
-      const updatedType = dto.discountType ?? promo.discountType;
+    if (updatePromotionDto.discountValue !== undefined) {
+      const updatedType = updatePromotionDto.discountType ?? promo.discountType;
       const updatedDiscount = this.validateDiscount(
         updatedType,
-        dto.discountValue,
+        updatePromotionDto.discountValue,
       );
       promo.discountType = updatedType;
       promo.discountValue = updatedDiscount;
     }
 
-    if (dto.expirationDate !== undefined) {
-      promo.expirationDate = this.validateExpiration(dto.expirationDate);
+    if (updatePromotionDto.expirationDate !== undefined) {
+      promo.expirationDate = this.validateExpiration(
+        updatePromotionDto.expirationDate,
+      );
     }
 
     return this.promotionRepo.save(promo);
