@@ -1,98 +1,258 @@
-<p align="center">
-  <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" /></a>
-</p>
+# Orders, Voucher & Promotion Management System (NestJS)
 
-[circleci-image]: https://img.shields.io/circleci/build/github/nestjs/nest/master?token=abc123def456
-[circleci-url]: https://circleci.com/gh/nestjs/nest
+This is a demo for creating and managing **orders**, **vouchers**, and **promotions**, with **automatic discount rules**, **usage tracking**, **expiry enforcement**, and **transaction-safe order creation**.
 
-  <p align="center">A progressive <a href="http://nodejs.org" target="_blank">Node.js</a> framework for building efficient and scalable server-side applications. This app is used to specifically build voucher management system, this file will be updated as I complete the app.</p>
-    <p align="center">
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/v/@nestjs/core.svg" alt="NPM Version" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/l/@nestjs/core.svg" alt="Package License" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/dm/@nestjs/common.svg" alt="NPM Downloads" /></a>
-<a href="https://circleci.com/gh/nestjs/nest" target="_blank"><img src="https://img.shields.io/circleci/build/github/nestjs/nest/master" alt="CircleCI" /></a>
-<a href="https://discord.gg/G7Qnnhy" target="_blank"><img src="https://img.shields.io/badge/discord-online-brightgreen.svg" alt="Discord"/></a>
-<a href="https://opencollective.com/nest#backer" target="_blank"><img src="https://opencollective.com/nest/backers/badge.svg" alt="Backers on Open Collective" /></a>
-<a href="https://opencollective.com/nest#sponsor" target="_blank"><img src="https://opencollective.com/nest/sponsors/badge.svg" alt="Sponsors on Open Collective" /></a>
-  <a href="https://paypal.me/kamilmysliwiec" target="_blank"><img src="https://img.shields.io/badge/Donate-PayPal-ff3f59.svg" alt="Donate us"/></a>
-    <a href="https://opencollective.com/nest#sponsor"  target="_blank"><img src="https://img.shields.io/badge/Support%20us-Open%20Collective-41B883.svg" alt="Support us"></a>
-  <a href="https://twitter.com/nestframework" target="_blank"><img src="https://img.shields.io/twitter/follow/nestframework.svg?style=social&label=Follow" alt="Follow us on Twitter"></a>
-</p>
-  <!--[![Backers on Open Collective](https://opencollective.com/nest/backers/badge.svg)](https://opencollective.com/nest#backer)
-  [![Sponsors on Open Collective](https://opencollective.com/nest/sponsors/badge.svg)](https://opencollective.com/nest#sponsor)-->
+The project includes full **Swagger API documentation**, **Supabase PostgreSQL integration**, **JWT Authentication** and is deployed to **Render**.
 
-## Description
+---
 
-[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
+## Overview & Architecture
 
-## Project setup
+### What the system does
 
-```bash
-$ npm install
+- Allows creation, update, and deletion of **vouchers** and **promotions** with flexible discount rules.
+- Creates **orders** while safely applying voucher & promotion business logic:
+  - Expiry validation
+  - Usage limit count-down
+  - Minimum order value restrictions
+  - Eligible SKU handling for promotions
+  - Max discount cap of 50% of order value
+
+- Ensures **atomic updates** for order creation and voucher / using database transactions so no partial order creation occurs.
+- Generates a complete **Swagger UI** to test APIs.
+- All the above functionalities are **only** accessible after **JST based Authentication** is successful.
+
+### Architecture components
+
+| Component           | Responsibility                    |
+| ------------------- | --------------------------------- |
+| NestJS              | Backend REST API                  |
+| TypeORM             | Database ORM & migrations         |
+| Supabase PostgreSQL | Persistent storage                |
+| Throttler           | Rate limiting per IP              |
+| JWT Auth            | Authentication and API protection |
+| Swagger             | OpenAPI documentation UI          |
+| Render              | Cloud deployment                  |
+
+---
+
+## Key Tech Stack
+
+- **NestJS**
+- **TypeScript**
+- **TypeORM**
+- **Supabase PostgreSQL**
+- **JWT Authentication**
+- **Swagger / OpenAPI**
+- **Render Deployment**
+- **Throttler rate-limiting**
+
+---
+
+## Environment Variables (.env)
+
+Create an `.env` file in the project root:
+
+```
+PORT=3000
+DATABASE_URL=<your-supabase-postgres-connection-string>
+JWT_SECRET=<your-secret-key>
+JWT_EXPIRES_IN=1d
 ```
 
-## Compile and run the project
+---
 
-```bash
-# development
-$ npm run start
+## Connecting Supabase Database
 
-# watch mode
-$ npm run start:dev
+1. Sign in to Supabase: [https://supabase.com](https://supabase.com)
+2. Create a new project or select an existing one
+3. Navigate to:
 
-# production mode
-$ npm run start:prod
+```
+Project Settings → Database → Connection String → URI
 ```
 
-## Run tests
+4. Copy the connection string (format):
 
-```bash
-# unit tests
-$ npm run test
-
-# e2e tests
-$ npm run test:e2e
-
-# test coverage
-$ npm run test:cov
+```
+postgres://postgres:<password>@<host>:5432/postgres
 ```
 
-## Deployment
+5. Paste into `.env`:
 
-When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.
-
-If you are looking for a cloud-based platform to deploy your NestJS application, check out [Mau](https://mau.nestjs.com), our official platform for deploying NestJS applications on AWS. Mau makes deployment straightforward and fast, requiring just a few simple steps:
-
-```bash
-$ npm install -g @nestjs/mau
-$ mau deploy
+```
+DATABASE_URL=postgres://postgres:<password>@<host>:5432/postgres
 ```
 
-With Mau, you can deploy your application in just a few clicks, allowing you to focus on building features rather than managing infrastructure.
+---
 
-## Resources
+## Running Migrations
 
-Check out a few resources that may come in handy when working with NestJS:
+Generate migration files based on entity changes:
 
-- Visit the [NestJS Documentation](https://docs.nestjs.com) to learn more about the framework.
-- For questions and support, please visit our [Discord channel](https://discord.gg/G7Qnnhy).
-- To dive deeper and get more hands-on experience, check out our official video [courses](https://courses.nestjs.com/).
-- Deploy your application to AWS with the help of [NestJS Mau](https://mau.nestjs.com) in just a few clicks.
-- Visualize your application graph and interact with the NestJS application in real-time using [NestJS Devtools](https://devtools.nestjs.com).
-- Need help with your project (part-time to full-time)? Check out our official [enterprise support](https://enterprise.nestjs.com).
-- To stay in the loop and get updates, follow us on [X](https://x.com/nestframework) and [LinkedIn](https://linkedin.com/company/nestjs).
-- Looking for a job, or have a job to offer? Check out our official [Jobs board](https://jobs.nestjs.com).
+```
+npm run migration:generate src/migrations/Migration
+```
 
-## Support
+Run pending migrations:
 
-Nest is an MIT-licensed open source project. It can grow thanks to the sponsors and support by the amazing backers. If you'd like to join them, please [read more here](https://docs.nestjs.com/support).
+```
+npm run migration:run
+```
 
-## Stay in touch
+Revert last migration:
 
-- Author - [Kamil Myśliwiec](https://twitter.com/kammysliwiec)
-- Website - [https://nestjs.com](https://nestjs.com/)
-- Twitter - [@nestframework](https://twitter.com/nestframework)
+```
+npm run migration:revert
+```
 
-## License
+---
 
-Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
+## Modules Overview
+
+| Module    | Description                                                                                                       |
+| --------- | ----------------------------------------------------------------------------------------------------------------- |
+| Voucher   | Manages voucher lifecycle with discount rules, expiry validation, min order restriction, and usage limit tracking |
+| Promotion | Manages promotion lifecycle with eligible SKUs validation, expiry rules, and usage deduction                      |
+| Orders    | Creates orders with transaction-safe business logic applying vouchers and promotions                              |
+
+---
+
+## API Endpoints
+
+### Auth API
+
+| Method | Endpoint      | Description                                                                                                       |
+| ------ | ------------- | ----------------------------------------------------------------------------------------------------------------- |
+| POST   | `/auth/login` | Authenticate statically, via username: "admin" and password: "password123", other username or password will fail. |
+
+---
+
+### Voucher APIs
+
+| Method | Endpoint          | Description               |
+| ------ | ----------------- | ------------------------- |
+| POST   | `/voucher`        | Create a new voucher      |
+| GET    | `/voucher`        | Get all vouchers          |
+| GET    | `/voucher/{id}`   | Get voucher by ID         |
+| PATCH  | `/voucher/{code}` | Update voucher using code |
+| DELETE | `/voucher/{id}`   | Delete voucher by ID      |
+
+---
+
+### Promotion APIs
+
+| Method | Endpoint            | Description                 |
+| ------ | ------------------- | --------------------------- |
+| POST   | `/promotion`        | Create a new promotion      |
+| GET    | `/promotion`        | Get all promotions          |
+| GET    | `/promotion/{id}`   | Get promotion by ID         |
+| PATCH  | `/promotion/{code}` | Update promotion using code |
+| DELETE | `/promotion/{id}`   | Delete promotion by ID      |
+
+---
+
+### Order APIs
+
+| Method | Endpoint      | Description                                    |
+| ------ | ------------- | ---------------------------------------------- |
+| POST   | `/order`      | Create a new order and apply voucher/promotion |
+| GET    | `/order`      | Fetch all orders                               |
+| GET    | `/order/{id}` | Get order by ID                                |
+| DELETE | `/order/{id}` | Delete order by ID                             |
+
+---
+
+## Local Development
+
+```
+npm install
+npm run start:dev
+```
+
+Verify DB connectivity:
+
+```
+npm run migration:run
+```
+
+---
+
+## Swagger / API Docs
+
+After starting the server on local machine, open on **browser**:
+
+```
+http://localhost:3000/api-docs
+```
+
+To access live version deployed on **Render** (this may take a minute to start as it is hosted on free tier):
+
+```
+https://order-management-system-7qfp.onrender.com/api-docs
+```
+
+---
+
+## Deployment (Render using existing Supabase DB)
+
+1. Push project to GitHub
+2. Create a new Web Service in Render
+3. Select “Public GitHub Repository”
+4. Set startup command:
+
+```
+npm run start:prod
+```
+
+5. Add environment variables in Render Dashboard exactly as in your local `.env` file.
+6. Do **not** enable Render PostgreSQL because Supabase DB will be used
+7. Deploy
+
+---
+
+## Run test cases (this runs all test cases for vouchers, promotions and orders):
+
+```
+npm run test
+```
+
+---
+
+## How to test the APIs with authentication (both local and live deployed version):
+
+1. From the Swagger API documentation access the api `auth/login` and pass the authentication details. Do not pass any other details as this is just a sample authentication API and any other details will result in `Unauthorized` data:
+
+```
+{
+  "username": "admin",
+  "password": "password123"
+}
+
+```
+
+2. This gives a success message with data such as:
+
+```
+{
+  "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VybmFtZSI6ImFkbWluIiwiaWF0IjoxNzYzOTU3NTEzLCJleHAiOjE3NjQwNDM5MTN9.bW7fXwQNEzoYdg8dkv5ZJkYD5Tm9vz3ndsYIZYtP9mM",
+  "message": "copy this access token and paste in above Authorize section to access other APIs"
+}
+
+```
+
+3. Copy the `access_token` and click on the Swagger's **Authorize** button and paste it in the value section. This enables access to all other APIs and is valid for 1 hour. You can also click on **Logout** within the Swagger's **Authorize** section to remove this `access_token` and invalidate authentication.
+
+4. You can now access all other API.
+
+---
+
+## Output Behavior Summary
+
+| Component  | Auto-Handled Functionality                                    |
+| ---------- | ------------------------------------------------------------- |
+| Vouchers   | Usage limit countdown, validation, min order rule             |
+| Promotions | Eligible SKU rule, usage decrement, expiry                    |
+| Orders     | Pessimistic locking, transaction safety, max 50% discount cap |
+
+---
