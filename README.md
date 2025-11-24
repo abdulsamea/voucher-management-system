@@ -247,7 +247,7 @@ npm run test
 
 ---
 
-## Database Schema Diagram
+## Database Schema Diagram for TypeORM Migrations table, Vouchers table, Promotions table and Orders table.
 
 ![Database ERD](docs/supabase-schema-yjzeerhgxmrbisbxcrjz.png)
 
