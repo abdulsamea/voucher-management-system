@@ -1,346 +1,437 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { OrderService } from './order.service';
-import { Repository } from 'typeorm';
 import { getRepositoryToken } from '@nestjs/typeorm';
+import { DataSource } from 'typeorm';
+import { BadRequestException, NotFoundException } from '@nestjs/common';
+
+import { OrderService } from './order.service';
 import { Order } from './order.entity';
 import { Voucher, VoucherDiscountType } from '../voucher/voucher.entity';
 import {
   Promotion,
   PromotionDiscountType,
 } from '../promotion/promotion.entity';
-import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { CreateOrderDto } from './order.dto';
 
-const mockRepo = () => ({
+type MockRepo<T = any> = {
+  findOne: jest.Mock;
+  find: jest.Mock;
+  save: jest.Mock;
+  create: jest.Mock;
+  remove: jest.Mock;
+};
+
+const createMockRepo = (): MockRepo => ({
   findOne: jest.fn(),
+  find: jest.fn(),
   save: jest.fn(),
   create: jest.fn(),
-  find: jest.fn(),
   remove: jest.fn(),
 });
 
-const order: Order = {
-  id: 0,
-  products: [
+describe('OrderService', () => {
+  let service: OrderService;
+
+  let orderRepo: MockRepo;
+  let voucherRepo: MockRepo;
+  let promotionRepo: MockRepo;
+  let dataSource: { transaction: jest.Mock };
+
+  const baseProducts: { sku: string; price: number }[] = [
     { sku: 'S1', price: 100 },
     { sku: 'S1', price: 100 },
     { sku: 'S2', price: 200 },
-  ],
-  voucher: null,
-  promotion: null,
-  discountApplied: 0,
-  createdAt: new Date(),
-};
+  ];
 
-describe('OrderService', () => {
-  let service: OrderService;
-  let orderRepo: jest.Mocked<Repository<Order>>;
-  let voucherRepo: jest.Mocked<Repository<Voucher>>;
-  let promoRepo: jest.Mocked<Repository<Promotion>>;
+  const baseOrderDto: CreateOrderDto = {
+    products: baseProducts,
+  };
+
+  const futureDate = () => {
+    const d = new Date();
+    d.setDate(d.getDate() + 1);
+    return d;
+  };
 
   beforeEach(async () => {
+    orderRepo = createMockRepo();
+    voucherRepo = createMockRepo();
+    promotionRepo = createMockRepo();
+
+    // DataSource.transaction mock that uses our repos
+    dataSource = {
+      transaction: jest.fn().mockImplementation(async (cb) => {
+        const manager = {
+          getRepository: (entity: any) => {
+            if (entity === Order) return orderRepo;
+            if (entity === Voucher) return voucherRepo;
+            if (entity === Promotion) return promotionRepo;
+            throw new Error(`Unknown entity: ${entity?.name}`);
+          },
+        };
+        return cb(manager as any);
+      }),
+    };
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         OrderService,
-        { provide: getRepositoryToken(Order), useFactory: mockRepo },
-        { provide: getRepositoryToken(Voucher), useFactory: mockRepo },
-        { provide: getRepositoryToken(Promotion), useFactory: mockRepo },
+        { provide: getRepositoryToken(Order), useValue: orderRepo },
+        { provide: getRepositoryToken(Voucher), useValue: voucherRepo },
+        { provide: getRepositoryToken(Promotion), useValue: promotionRepo },
+        { provide: DataSource, useValue: dataSource },
       ],
     }).compile();
 
     service = module.get<OrderService>(OrderService);
-    orderRepo = module.get(getRepositoryToken(Order));
-    voucherRepo = module.get(getRepositoryToken(Voucher));
-    promoRepo = module.get(getRepositoryToken(Promotion));
   });
 
-  it('should be defined', () => {
-    expect(service).toBeDefined();
+  afterEach(() => {
+    jest.clearAllMocks();
   });
 
   describe('create()', () => {
     it('should create order without voucher/promotion', async () => {
-      const updatedOrderData: CreateOrderDto = {
-        ...order,
-        voucherCode: undefined,
-        promotionCode: undefined,
+      const mockSavedOrder: Order = {
+        id: 1,
+        products: baseProducts,
+        discountApplied: 0,
+        voucher: null,
+        promotion: null,
+        createdAt: new Date(),
       };
-      orderRepo.create.mockReturnValue(order);
-      orderRepo.save.mockResolvedValue(order);
 
-      const result = await service.create(order);
-      expect(result).toEqual(updatedOrderData);
+      orderRepo.create.mockReturnValue(mockSavedOrder);
+      orderRepo.save.mockResolvedValue(mockSavedOrder);
+
+      const result = await service.create(baseOrderDto);
+
+      expect(dataSource.transaction).toHaveBeenCalledTimes(1);
+      expect(orderRepo.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          products: baseProducts,
+          discountApplied: 0,
+          voucher: null,
+          promotion: null,
+        }),
+      );
+      expect(orderRepo.save).toHaveBeenCalled();
+      expect(result.discountApplied).toBe(0);
+      expect(result.products).toHaveLength(3);
+      expect(result.voucher).toBeNull();
+      expect(result.promotion).toBeNull();
     });
 
-    // below test cases handle voucher validation rules.
-    it('should throw if voucher not found', async () => {
-      voucherRepo.findOne.mockResolvedValue(null);
-
-      await expect(
-        service.create({ ...order, voucherCode: 'ABC' } as any),
-      ).rejects.toThrow(NotFoundException);
-    });
+    // ---- Voucher validation tests ----
 
     it('should throw if voucher expired', async () => {
+      const past = new Date('2000-01-01T00:00:00.000Z');
       voucherRepo.findOne.mockResolvedValue({
-        expirationDate: new Date(Date.now() - 10000),
-        usageLimit: 5,
+        code: 'V1',
+        discountType: VoucherDiscountType.PERCENTAGE,
+        discountValue: 10,
+        expirationDate: past,
+        usageLimit: 10,
+        minOrderValue: 0,
       } as Voucher);
 
       await expect(
-        service.create({ ...order, voucherCode: 'V1' } as any),
+        service.create({ ...baseOrderDto, voucherCode: 'V1' }),
       ).rejects.toThrow(BadRequestException);
+      expect(orderRepo.save).not.toHaveBeenCalled();
     });
 
     it('should throw if voucher usageLimit reached', async () => {
       voucherRepo.findOne.mockResolvedValue({
-        expirationDate: new Date(Date.now() + 10000),
+        code: 'V1',
+        discountType: VoucherDiscountType.PERCENTAGE,
+        discountValue: 10,
+        expirationDate: futureDate(),
         usageLimit: 0,
+        minOrderValue: 0,
       } as Voucher);
 
       await expect(
-        service.create({ ...order, voucherCode: 'V1' } as any),
+        service.create({ ...baseOrderDto, voucherCode: 'V1' }),
       ).rejects.toThrow(BadRequestException);
+      expect(orderRepo.save).not.toHaveBeenCalled();
     });
 
     it('should apply percentage voucher correctly', async () => {
-      const voucher: Voucher = {
-        id: 1,
+      // orderValue = 100 + 100 + 200 = 400; 10% = 40
+      voucherRepo.findOne.mockResolvedValue({
         code: 'V1',
-        expirationDate: new Date(Date.now() + 10000),
-        usageLimit: 1,
         discountType: VoucherDiscountType.PERCENTAGE,
         discountValue: 10,
+        expirationDate: futureDate(),
+        usageLimit: 5,
+        minOrderValue: 0,
+      } as Voucher);
+
+      const savedOrder: Order = {
+        id: 1,
+        products: baseProducts,
+        discountApplied: 40,
+        voucher: {} as Voucher,
+        promotion: null,
+        createdAt: new Date(),
       };
 
-      voucherRepo.findOne.mockResolvedValue(voucher);
+      orderRepo.create.mockReturnValue(savedOrder);
+      orderRepo.save.mockResolvedValue(savedOrder);
 
-      voucherRepo.save.mockResolvedValue(voucher);
-      orderRepo.create.mockReturnValue(order);
-      orderRepo.save.mockResolvedValue(order);
+      const result = await service.create({
+        ...baseOrderDto,
+        voucherCode: 'V1',
+      });
 
-      await service.create({ ...order, voucherCode: 'V1' } as CreateOrderDto);
-
-      expect(orderRepo.create).toHaveBeenCalledWith(
-        expect.objectContaining({
-          discountApplied: 40, // 10% of entire product order i.e 40%
-        }),
-      );
+      expect(result.discountApplied).toBe(40);
+      expect(voucherRepo.save).toHaveBeenCalled();
     });
 
     it('should apply fixed voucher correctly', async () => {
-      const voucher: Voucher = {
-        id: 1,
+      voucherRepo.findOne.mockResolvedValue({
         code: 'V1',
-        expirationDate: new Date(Date.now() + 10000),
-        usageLimit: 1,
         discountType: VoucherDiscountType.FIXED,
-        discountValue: 25,
+        discountValue: 50,
+        expirationDate: futureDate(),
+        usageLimit: 5,
+        minOrderValue: 0,
+      } as Voucher);
+
+      const savedOrder: Order = {
+        id: 1,
+        products: baseProducts,
+        discountApplied: 50,
+        voucher: {} as Voucher,
+        promotion: null,
+        createdAt: new Date(),
       };
-      voucherRepo.findOne.mockResolvedValue(voucher);
 
-      voucherRepo.save.mockResolvedValue(voucher);
-      orderRepo.create.mockReturnValue(order);
-      orderRepo.save.mockResolvedValue(order);
+      orderRepo.create.mockReturnValue(savedOrder);
+      orderRepo.save.mockResolvedValue(savedOrder);
 
-      await service.create({ ...order, voucherCode: 'V1' } as any);
+      const result = await service.create({
+        ...baseOrderDto,
+        voucherCode: 'V1',
+      });
 
-      expect(orderRepo.create).toHaveBeenCalledWith(
-        expect.objectContaining({ discountApplied: 25 }),
-      );
+      expect(result.discountApplied).toBe(50);
+      expect(voucherRepo.save).toHaveBeenCalled();
     });
 
-    it(`should not apply voucher to orders below the voucher's minimum order value`, async () => {
-      const voucher: Voucher = {
-        id: 1,
+    it("should not apply voucher to orders below the voucher's minimum order value", async () => {
+      // orderValue = 400, so set minOrderValue to 500
+      voucherRepo.findOne.mockResolvedValue({
         code: 'V1',
-        expirationDate: new Date(Date.now() + 10000),
-        usageLimit: 1,
-        discountType: VoucherDiscountType.FIXED,
-        discountValue: 25,
-        minOrderValue: 401,
-      };
-      voucherRepo.findOne.mockResolvedValue(voucher);
-
-      voucherRepo.save.mockResolvedValue(voucher);
-      orderRepo.create.mockReturnValue(order);
-      orderRepo.save.mockResolvedValue(order);
+        discountType: VoucherDiscountType.PERCENTAGE,
+        discountValue: 10,
+        expirationDate: futureDate(),
+        usageLimit: 5,
+        minOrderValue: 500,
+      } as Voucher);
 
       await expect(
-        service.create({ ...order, voucherCode: 'V1' } as any),
+        service.create({ ...baseOrderDto, voucherCode: 'V1' }),
       ).rejects.toThrow(BadRequestException);
+      expect(orderRepo.save).not.toHaveBeenCalled();
     });
 
-    // below test cases handle promotion validation rules.
-    it('should throw if promotion not found', async () => {
-      promoRepo.findOne.mockResolvedValue(null);
-
-      await expect(
-        service.create({ ...order, promotionCode: 'PR1' } as any),
-      ).rejects.toThrow(NotFoundException);
-    });
+    // ---- Promotion validation tests ----
 
     it('should throw if promotion expired', async () => {
-      promoRepo.findOne.mockResolvedValue({
-        expirationDate: new Date(Date.now() - 10000),
-        usageLimit: 5,
+      const past = new Date('2000-01-01T00:00:00.000Z');
+      promotionRepo.findOne.mockResolvedValue({
+        code: 'PR1',
+        discountType: PromotionDiscountType.PERCENTAGE,
+        discountValue: 10,
+        expirationDate: past,
+        usageLimit: 10,
+        eligibleSkus: ['S1'],
       } as Promotion);
 
       await expect(
-        service.create({ ...order, promotionCode: 'PR1' } as any),
+        service.create({ ...baseOrderDto, promotionCode: 'PR1' }),
       ).rejects.toThrow(BadRequestException);
+      expect(orderRepo.save).not.toHaveBeenCalled();
     });
 
     it('should throw if promotion usageLimit reached', async () => {
-      promoRepo.findOne.mockResolvedValue({
-        expirationDate: new Date(Date.now() + 10000),
+      promotionRepo.findOne.mockResolvedValue({
+        code: 'PR1',
+        discountType: PromotionDiscountType.PERCENTAGE,
+        discountValue: 10,
+        expirationDate: futureDate(),
         usageLimit: 0,
+        eligibleSkus: ['S1'],
       } as Promotion);
 
       await expect(
-        service.create({ ...order, promotionCode: 'PR1' } as any),
+        service.create({ ...baseOrderDto, promotionCode: 'PR1' }),
       ).rejects.toThrow(BadRequestException);
+      expect(orderRepo.save).not.toHaveBeenCalled();
     });
 
     it('should throw if promotion not applicable to any product', async () => {
-      const promotion: Promotion = {
-        id: 1,
-        code: 'PR2',
-        discountType: PromotionDiscountType.FIXED,
-        discountValue: 13,
-        expirationDate: new Date(Date.now() + 10000),
-        usageLimit: 2,
-        eligibleSkus: ['Z1', 'Z2'],
-      };
-      promoRepo.findOne.mockResolvedValue(promotion);
+      // eligibleSkus that don't match S1/S2
+      promotionRepo.findOne.mockResolvedValue({
+        code: 'PR1',
+        discountType: PromotionDiscountType.PERCENTAGE,
+        discountValue: 10,
+        expirationDate: futureDate(),
+        usageLimit: 5,
+        eligibleSkus: ['X', 'Y'],
+      } as Promotion);
 
       await expect(
-        service.create({ ...order, promotionCode: 'PR1' } as any),
+        service.create({ ...baseOrderDto, promotionCode: 'PR1' }),
       ).rejects.toThrow(BadRequestException);
+      expect(orderRepo.save).not.toHaveBeenCalled();
     });
 
     it('should prevent using a voucher and promotion with same code', async () => {
-      const voucher: Voucher = {
-        id: 2,
+      voucherRepo.findOne.mockResolvedValue({
         code: 'X',
-        expirationDate: new Date(Date.now() + 10000),
-        usageLimit: 2,
-        discountType: VoucherDiscountType.FIXED,
-        discountValue: 20,
-      };
+        discountType: VoucherDiscountType.PERCENTAGE,
+        discountValue: 10,
+        expirationDate: futureDate(),
+        usageLimit: 5,
+        minOrderValue: 0,
+      } as Voucher);
 
-      const promotion: Promotion = {
-        id: 1,
+      promotionRepo.findOne.mockResolvedValue({
         code: 'X',
-        discountType: PromotionDiscountType.FIXED,
-        discountValue: 13,
-        expirationDate: new Date(Date.now() + 10000),
-        usageLimit: 2,
-        eligibleSkus: ['Z1', 'Z2'],
-      };
-
-      voucherRepo.findOne.mockResolvedValue(voucher);
-      promoRepo.findOne.mockResolvedValue(promotion);
+        discountType: PromotionDiscountType.PERCENTAGE,
+        discountValue: 10,
+        expirationDate: futureDate(),
+        usageLimit: 5,
+        eligibleSkus: ['S1'],
+      } as Promotion);
 
       await expect(
         service.create({
-          ...order,
+          ...baseOrderDto,
           voucherCode: 'X',
           promotionCode: 'X',
-        } as any),
+        }),
       ).rejects.toThrow(BadRequestException);
+      expect(orderRepo.save).not.toHaveBeenCalled();
     });
 
     it('should cap discount at maximum 50% of order value', async () => {
-      const voucher: Voucher = {
-        id: 1,
+      // orderValue = 400, cap = 200
+      // use high percentage: 80% (320) to force cap
+      voucherRepo.findOne.mockResolvedValue({
         code: 'V1',
-        expirationDate: new Date(Date.now() + 10000),
-        usageLimit: 2,
-        discountType: VoucherDiscountType.FIXED,
-        discountValue: 60,
+        discountType: VoucherDiscountType.PERCENTAGE,
+        discountValue: 80,
+        expirationDate: futureDate(),
+        usageLimit: 5,
+        minOrderValue: 0,
+      } as Voucher);
+
+      const savedOrder: Order = {
+        id: 1,
+        products: baseProducts,
+        discountApplied: 200, // capped value
+        voucher: {} as Voucher,
+        promotion: null,
+        createdAt: new Date(),
       };
 
-      voucherRepo.findOne.mockResolvedValue(voucher);
-      voucherRepo.save.mockResolvedValue(voucher);
+      orderRepo.create.mockReturnValue(savedOrder);
+      orderRepo.save.mockResolvedValue(savedOrder);
 
-      orderRepo.create.mockReturnValue(order);
-      orderRepo.save.mockResolvedValue(order);
-
-      await service.create({
-        ...order,
+      const result = await service.create({
+        ...baseOrderDto,
         voucherCode: 'V1',
-      } as any);
+      });
 
-      expect(orderRepo.create).toHaveBeenCalledWith(
-        expect.objectContaining({ discountApplied: 60 }), // capped at 50% of all products in an order
-      );
+      expect(result.discountApplied).toBe(200);
     });
 
-    it('should apply promotion to only 1 product in an order even if multiple eliglible orders are present', async () => {
-      const promotion: Promotion = {
+    it('should apply promotion to only 1 product even if multiple eligible items exist', async () => {
+      // orderValue = 400
+      // eligibleSkus includes "S1", which appears twice with price 100 each
+      // 50% promotion on one S1 => expected discount = 50
+      promotionRepo.findOne.mockResolvedValue({
+        code: 'PR1',
+        discountType: PromotionDiscountType.PERCENTAGE,
+        discountValue: 50,
+        expirationDate: futureDate(),
+        usageLimit: 5,
+        eligibleSkus: ['S1'],
+      } as Promotion);
+
+      const savedOrder: Order = {
         id: 1,
-        code: 'X',
-        discountType: PromotionDiscountType.FIXED,
-        discountValue: 10,
-        expirationDate: new Date(Date.now() + 10000),
-        usageLimit: 2,
-        eligibleSkus: ['S1', 'S2'],
+        products: baseProducts,
+        discountApplied: 50,
+        voucher: null,
+        promotion: {} as Promotion,
+        createdAt: new Date(),
       };
 
-      promoRepo.findOne.mockResolvedValue(promotion);
-      promoRepo.save.mockResolvedValue(promotion);
+      orderRepo.create.mockReturnValue(savedOrder);
+      orderRepo.save.mockResolvedValue(savedOrder);
 
-      orderRepo.create.mockReturnValue(order);
-      orderRepo.save.mockResolvedValue(order);
+      const result = await service.create({
+        ...baseOrderDto,
+        promotionCode: 'PR1',
+      });
 
-      await service.create({
-        ...order,
-        promotionCode: 'X',
-      } as CreateOrderDto);
-
-      expect(orderRepo.create).toHaveBeenCalledWith(
-        expect.objectContaining({ discountApplied: 10 }),
-      );
+      expect(result.discountApplied).toBe(50);
     });
   });
 
   describe('findAll()', () => {
     it('should return all orders', async () => {
-      orderRepo.find.mockResolvedValue([{ id: 1 } as Order]);
+      const orders: Order[] = [{ id: 1 } as Order, { id: 2 } as Order];
+      orderRepo.find.mockResolvedValue(orders);
 
       const result = await service.findAll();
-      expect(result).toEqual([{ id: 1 }]);
+
+      expect(orderRepo.find).toHaveBeenCalledWith({
+        relations: ['voucher', 'promotion'],
+      });
+      expect(result).toEqual(orders);
     });
   });
 
   describe('findOne()', () => {
-    it('should return order', async () => {
-      orderRepo.findOne.mockResolvedValue({ id: 1 } as Order);
+    it('should return an order if found', async () => {
+      const order: Order = { id: 1 } as Order;
+      orderRepo.findOne.mockResolvedValue(order);
 
       const result = await service.findOne(1);
-      expect(result).toEqual({ id: 1 });
+
+      expect(orderRepo.findOne).toHaveBeenCalledWith({
+        where: { id: 1 },
+        relations: ['voucher', 'promotion'],
+      });
+      expect(result).toBe(order);
     });
 
-    it('should throw if order not found', async () => {
+    it('should throw NotFoundException if order not found', async () => {
       orderRepo.findOne.mockResolvedValue(null);
 
-      await expect(service.findOne(1)).rejects.toThrow(NotFoundException);
+      await expect(service.findOne(999)).rejects.toThrow(NotFoundException);
     });
   });
 
   describe('delete()', () => {
     it('should delete successfully', async () => {
+      const order: Order = { id: 1 } as Order;
       orderRepo.findOne.mockResolvedValue(order);
       orderRepo.remove.mockResolvedValue(order);
 
       await expect(service.delete(1)).resolves.not.toThrow();
+      expect(orderRepo.remove).toHaveBeenCalledWith(order);
     });
 
-    it('should throw if deleting non-existing order', async () => {
+    it('should throw NotFoundException when deleting non-existing order', async () => {
       orderRepo.findOne.mockResolvedValue(null);
 
-      await expect(service.delete(1)).rejects.toThrow(NotFoundException);
+      await expect(service.delete(999)).rejects.toThrow(NotFoundException);
     });
   });
 });

@@ -4,7 +4,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { DataSource, Repository } from 'typeorm';
 
 import { Order } from './order.entity';
 import { CreateOrderDto } from './order.dto';
@@ -17,21 +17,8 @@ export class OrderService {
     @InjectRepository(Order) private orderRepo: Repository<Order>,
     @InjectRepository(Voucher) private voucherRepo: Repository<Voucher>,
     @InjectRepository(Promotion) private promoRepo: Repository<Promotion>,
+    private dataSource: DataSource,
   ) {}
-
-  private parseJsonInput<T>(value: any, fieldName: string): T {
-    if (Array.isArray(value) || typeof value === 'object') {
-      return value as T; // already a JSON
-    }
-    if (typeof value === 'string') {
-      try {
-        return JSON.parse(value) as T;
-      } catch {
-        throw new BadRequestException(`Invalid JSON format for ${fieldName}`);
-      }
-    }
-    throw new BadRequestException(`Invalid type for ${fieldName}`);
-  }
 
   private validateExpiry(expirationDate: Date) {
     if (new Date(expirationDate) < new Date()) {
@@ -45,124 +32,95 @@ export class OrderService {
     }
   }
 
-  private validateEligibleProducts(
-    orderProducts: string[],
-    eligibleProducts?: string[],
-  ) {
-    if (!eligibleProducts || eligibleProducts.length === 0) return;
-
-    const isEligible = orderProducts.some((p) => eligibleProducts.includes(p));
-    if (!isEligible) {
-      throw new BadRequestException(
-        'Promotion not applicable to any product in this order',
-      );
-    }
-  }
-
   async create(dto: CreateOrderDto): Promise<Order> {
-    let discountApplied = 0;
-    let voucher: Voucher | null = null;
-    let promotion: Promotion | null = null;
+    return this.dataSource.transaction(async (manager) => {
+      let discountApplied = 0;
+      let voucher: Voucher | null = null;
+      let promotion: Promotion | null = null;
 
-    // parse products safely
-    const products = this.parseJsonInput<{ sku: string; price: number }[]>(
-      dto.products,
-      'products',
-    );
+      const products = dto.products;
 
-    // compute order value from products
-    const orderValue = products.reduce((sum, p) => sum + p.price, 0);
+      const orderValue = products.reduce((sum, p) => sum + p.price, 0);
 
-    // apply voucher
-    if (dto.voucherCode) {
-      voucher = await this.voucherRepo.findOne({
-        where: { code: dto.voucherCode },
-      });
-      if (!voucher) throw new NotFoundException('Voucher not found');
+      // apply voucher validations if applicable.
+      if (dto.voucherCode) {
+        voucher = await manager.getRepository(Voucher).findOne({
+          where: { code: dto.voucherCode },
+        });
+        if (!voucher) throw new NotFoundException('Voucher not found');
 
-      this.validateExpiry(voucher.expirationDate);
-      this.validateUsageLimit(voucher);
+        this.validateExpiry(voucher.expirationDate);
+        this.validateUsageLimit(voucher);
 
-      // enforce min order value rule
-      if (voucher.minOrderValue && orderValue < voucher.minOrderValue) {
-        throw new BadRequestException(
-          `Minimum order value must be ${voucher.minOrderValue} to apply this voucher.`,
-        );
-      }
+        if (voucher.minOrderValue && orderValue < voucher.minOrderValue) {
+          throw new BadRequestException(
+            `Minimum order value must be ${voucher.minOrderValue} to apply this voucher.`,
+          );
+        }
 
-      // apply discount
-      if (voucher.discountType === 'percentage') {
-        discountApplied += (orderValue * voucher.discountValue) / 100;
-      } else {
-        discountApplied += voucher.discountValue;
-      }
-
-      voucher.usageLimit -= 1;
-    }
-
-    // apply promotion
-    if (dto.promotionCode) {
-      promotion = await this.promoRepo.findOne({
-        where: { code: dto.promotionCode },
-      });
-      if (!promotion) throw new NotFoundException('Promotion not found');
-
-      this.validateExpiry(promotion.expirationDate);
-      this.validateUsageLimit(promotion);
-
-      // ensure voucher & promotion code are not same
-      if (voucher && voucher.code === promotion.code) {
-        throw new BadRequestException('Voucher and Promotion cannot be same');
-      }
-
-      // ensure promotion has eligible items list defined
-      if (!promotion.eligibleSkus || promotion.eligibleSkus.length === 0) {
-        throw new BadRequestException(
-          'Promotion cannot be applied because it does not define eligible SKUs',
-        );
-      }
-
-      // find first eligible sku index (apply promotion only once)
-      const eligibleIndex = products.findIndex((p) =>
-        promotion!.eligibleSkus!.includes(p.sku),
-      );
-
-      if (eligibleIndex === -1) {
-        throw new BadRequestException(
-          'Promotion not applicable to any product in this order',
-        );
-      }
-
-      // only apply promotion on the FIRST eligible product
-      const eligibleProduct = products[eligibleIndex];
-      if (promotion.discountType === 'percentage') {
         discountApplied +=
-          (eligibleProduct.price * promotion.discountValue) / 100;
-      } else {
-        discountApplied += promotion.discountValue;
+          voucher.discountType === 'percentage'
+            ? (orderValue * voucher.discountValue) / 100
+            : voucher.discountValue;
+
+        voucher.usageLimit -= 1;
       }
 
-      promotion.usageLimit -= 1;
-    }
+      // apply promotion validations if applicable.
+      if (dto.promotionCode) {
+        promotion = await manager.getRepository(Promotion).findOne({
+          where: { code: dto.promotionCode },
+        });
+        if (!promotion) throw new NotFoundException('Promotion not found');
 
-    // limit max discount to 50% (this is applied to overall order, not individual products)
-    const maxAllowed = orderValue * 0.5;
-    if (discountApplied > maxAllowed) {
-      discountApplied = maxAllowed;
-    }
+        this.validateExpiry(promotion.expirationDate);
+        this.validateUsageLimit(promotion);
 
-    // save order
-    const order = this.orderRepo.create({
-      products,
-      discountApplied,
-      voucher,
-      promotion,
+        if (voucher && voucher.code === promotion.code) {
+          throw new BadRequestException('Voucher and Promotion cannot be same');
+        }
+
+        if (!promotion.eligibleSkus || promotion.eligibleSkus.length === 0) {
+          throw new BadRequestException(
+            'Promotion cannot be applied because it does not define eligible SKUs',
+          );
+        }
+
+        const eligibleIndex = products.findIndex((p) =>
+          promotion!.eligibleSkus!.includes(p.sku),
+        );
+        if (eligibleIndex === -1) {
+          throw new BadRequestException(
+            'Promotion not applicable to any product in this order',
+          );
+        }
+
+        const eligibleProduct = products[eligibleIndex];
+        discountApplied +=
+          promotion.discountType === 'percentage'
+            ? (eligibleProduct.price * promotion.discountValue) / 100
+            : promotion.discountValue;
+
+        promotion.usageLimit -= 1;
+      }
+
+      const maxAllowed = orderValue * 0.5;
+      if (discountApplied > maxAllowed) {
+        discountApplied = maxAllowed;
+      }
+
+      const order = manager.getRepository(Order).create({
+        products,
+        discountApplied,
+        voucher,
+        promotion,
+      });
+
+      // only update usage limits of voucher and promotions if order is created and after all validations.
+      if (voucher) await manager.getRepository(Voucher).save(voucher);
+      if (promotion) await manager.getRepository(Promotion).save(promotion);
+      return manager.getRepository(Order).save(order);
     });
-
-    // only save voucher and promotion changes (usage limit) after all validations are done and order is saved.
-    if (voucher) await this.voucherRepo.save(voucher);
-    if (promotion) await this.promoRepo.save(promotion);
-    return this.orderRepo.save(order);
   }
 
   async findAll(): Promise<Order[]> {
