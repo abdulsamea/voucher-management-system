@@ -5,7 +5,6 @@ import {
   IsNumber,
   IsDateString,
   Min,
-  Max,
   IsArray,
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
@@ -22,22 +21,13 @@ export class CreatePromotionDto {
   code?: string;
 
   @ApiPropertyOptional({
-    description: 'List of eligible product categories for this promotion.',
+    description: 'List of eligible product SKUs.',
     type: [String],
-    example: ['Electronics', 'Clothing'],
+    example: ['SKU1', 'SKU2'],
   })
   @IsOptional()
   @IsArray()
-  eligibleCategories?: string[];
-
-  @ApiPropertyOptional({
-    description: 'List of eligible product IDs or SKUs.',
-    type: [String],
-    example: ['ITEM001', 'ITEM002'],
-  })
-  @IsOptional()
-  @IsArray()
-  eligibleItems?: string[];
+  eligibleSkus?: string[];
 
   @ApiProperty({
     description: 'Type of discount: percentage or fixed.',
@@ -74,22 +64,13 @@ export class CreatePromotionDto {
 
 export class UpdatePromotionDto {
   @ApiPropertyOptional({
-    description: 'Updated eligible product categories.',
+    description: 'Updated eligible product SKUs.',
     type: [String],
-    example: ['Home Appliances', 'Sports'],
+    example: ['SKU1', 'SKU2'],
   })
   @IsOptional()
   @IsArray()
-  eligibleCategories?: string[];
-
-  @ApiPropertyOptional({
-    description: 'Updated eligible product items.',
-    type: [String],
-    example: ['ITEM100', 'ITEM200'],
-  })
-  @IsOptional()
-  @IsArray()
-  eligibleItems?: string[];
+  eligibleSkus?: string[];
 
   @ApiPropertyOptional({
     description: 'Updated discount type.',

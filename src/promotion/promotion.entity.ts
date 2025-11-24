@@ -15,10 +15,7 @@ export class Promotion {
   code: string;
 
   @Column({ type: 'simple-array', nullable: true })
-  eligibleCategories?: string[];
-
-  @Column({ type: 'simple-array', nullable: true })
-  eligibleItems?: string[];
+  eligibleSkus?: string[];
 
   @Column({ type: 'enum', enum: PromotionDiscountType })
   discountType: PromotionDiscountType;

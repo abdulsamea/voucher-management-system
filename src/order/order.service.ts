@@ -98,7 +98,6 @@ export class OrderService {
       }
 
       voucher.usageLimit -= 1;
-      await this.voucherRepo.save(voucher);
     }
 
     // apply promotion
@@ -117,15 +116,15 @@ export class OrderService {
       }
 
       // ensure promotion has eligible items list defined
-      if (!promotion.eligibleItems || promotion.eligibleItems.length === 0) {
+      if (!promotion.eligibleSkus || promotion.eligibleSkus.length === 0) {
         throw new BadRequestException(
-          'Promotion cannot be applied because it does not define eligible items',
+          'Promotion cannot be applied because it does not define eligible SKUs',
         );
       }
 
-      // find first eligible product index (apply promotion only once)
+      // find first eligible sku index (apply promotion only once)
       const eligibleIndex = products.findIndex((p) =>
-        promotion!.eligibleItems!.includes(p.sku),
+        promotion!.eligibleSkus!.includes(p.sku),
       );
 
       if (eligibleIndex === -1) {
@@ -144,7 +143,6 @@ export class OrderService {
       }
 
       promotion.usageLimit -= 1;
-      await this.promoRepo.save(promotion);
     }
 
     // limit max discount to 50% (this is applied to overall order, not individual products)
@@ -161,6 +159,9 @@ export class OrderService {
       promotion,
     });
 
+    // only save voucher and promotion changes (usage limit) after all validations are done and order is saved.
+    if (voucher) await this.voucherRepo.save(voucher);
+    if (promotion) await this.promoRepo.save(promotion);
     return this.orderRepo.save(order);
   }
 

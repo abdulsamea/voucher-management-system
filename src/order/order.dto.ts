@@ -24,8 +24,8 @@ export class CreateOrderDto {
     type: [OrderProductDto],
     description: 'List of products with SKU and price',
     example: [
-      { sku: 'ITEM001', price: 200 },
-      { sku: 'ITEM002', price: 150 },
+      { sku: 'SKU1', price: 200 },
+      { sku: 'SKU2', price: 150 },
     ],
   })
   @IsArray()

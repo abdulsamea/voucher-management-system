@@ -210,7 +210,7 @@ describe('OrderService', () => {
         discountValue: 13,
         expirationDate: new Date(Date.now() + 10000),
         usageLimit: 2,
-        eligibleItems: ['Z1', 'Z2'],
+        eligibleSkus: ['Z1', 'Z2'],
       };
       promoRepo.findOne.mockResolvedValue(promotion);
 
@@ -236,7 +236,7 @@ describe('OrderService', () => {
         discountValue: 13,
         expirationDate: new Date(Date.now() + 10000),
         usageLimit: 2,
-        eligibleItems: ['Z1', 'Z2'],
+        eligibleSkus: ['Z1', 'Z2'],
       };
 
       voucherRepo.findOne.mockResolvedValue(voucher);
@@ -285,7 +285,7 @@ describe('OrderService', () => {
         discountValue: 10,
         expirationDate: new Date(Date.now() + 10000),
         usageLimit: 2,
-        eligibleItems: ['S1', 'S2'],
+        eligibleSkus: ['S1', 'S2'],
       };
 
       promoRepo.findOne.mockResolvedValue(promotion);

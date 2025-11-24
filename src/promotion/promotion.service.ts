@@ -18,57 +18,95 @@ export class PromotionService {
     private promotionRepo: Repository<Promotion>,
   ) {}
 
-  async create(createPromotionDto: CreatePromotionDto): Promise<Promotion> {
-    const code =
-      createPromotionDto.code?.trim() ||
-      PROMOTION_PREFIX + randomstring.generate(8).toUpperCase();
-
-    const expiration = new Date(createPromotionDto.expirationDate);
-    if (isNaN(expiration.getTime())) {
+  private validateExpiration(expiration: string | Date): Date {
+    const exp = new Date(expiration);
+    if (isNaN(exp.getTime())) {
       throw new BadRequestException(
         'Invalid expiration date for this promotion.',
       );
     }
-    if (expiration <= new Date()) {
+    if (exp <= new Date()) {
       throw new BadRequestException(
         'Expiration date must be a future date for this promotion.',
       );
     }
+    return exp;
+  }
 
-    if (
-      typeof createPromotionDto.usageLimit !== 'number' ||
-      createPromotionDto.usageLimit <= 0
-    ) {
-      throw new BadRequestException(
-        'Usage limit must be greater than zero for this promotion.',
-      );
-    }
-
-    if (createPromotionDto.discountValue <= 0) {
+  private validateDiscount(
+    type: PromotionDiscountType,
+    discount: number,
+  ): number {
+    if (discount <= 0) {
       throw new BadRequestException(
         'Discount value must be positive for this promotion.',
       );
     }
 
-    if (createPromotionDto.discountType === 'percentage') {
-      if (
-        createPromotionDto.discountValue < 1 ||
-        createPromotionDto.discountValue > 100
-      ) {
+    if (type === PromotionDiscountType.PERCENTAGE) {
+      if (discount < 1 || discount > 100) {
         throw new BadRequestException(
           'Percentage discount must be between 1 and 100.',
         );
       }
     }
 
+    if (type === PromotionDiscountType.FIXED) {
+      if (discount < 1) {
+        throw new BadRequestException(
+          'Fixed discount must be greater than zero.',
+        );
+      }
+    }
+
+    return discount;
+  }
+
+  private validateUsageLimit(limit: number | undefined): number {
+    if (typeof limit !== 'number' || limit <= 0) {
+      throw new BadRequestException(
+        'Usage limit must be greater than zero for this promotion.',
+      );
+    }
+    return limit;
+  }
+
+  private validateDiscountType(
+    type: string | undefined,
+  ): PromotionDiscountType | undefined {
+    if (
+      type !== undefined &&
+      type !== PromotionDiscountType.PERCENTAGE &&
+      type !== PromotionDiscountType.FIXED
+    ) {
+      throw new BadRequestException(
+        `Promotion discount type must be either '${PromotionDiscountType.PERCENTAGE}' or '${PromotionDiscountType.FIXED}'.`,
+      );
+    }
+    return type as PromotionDiscountType;
+  }
+
+  async create(dto: CreatePromotionDto): Promise<Promotion> {
+    const code =
+      dto.code?.trim() ||
+      PROMOTION_PREFIX + randomstring.generate(8).toUpperCase();
+
+    const expiration = this.validateExpiration(dto.expirationDate);
+    const discountType =
+      this.validateDiscountType(dto.discountType) ?? dto.discountType;
+    const discountValue = this.validateDiscount(
+      discountType,
+      dto.discountValue,
+    );
+    const usageLimit = this.validateUsageLimit(dto.usageLimit);
+
     const promotion = this.promotionRepo.create({
       code,
-      eligibleCategories: createPromotionDto.eligibleCategories,
-      eligibleItems: createPromotionDto.eligibleItems,
-      discountType: createPromotionDto.discountType,
-      discountValue: createPromotionDto.discountValue,
+      eligibleSkus: dto.eligibleSkus,
+      discountType,
+      discountValue,
       expirationDate: expiration,
-      usageLimit: createPromotionDto.usageLimit,
+      usageLimit,
     });
 
     try {
@@ -104,83 +142,30 @@ export class PromotionService {
       throw new NotFoundException('Promotion not found');
     }
 
-    if (dto.eligibleCategories !== undefined) {
-      promo.eligibleCategories = dto.eligibleCategories;
-    }
-
-    if (dto.eligibleItems !== undefined) {
-      promo.eligibleItems = dto.eligibleItems;
+    if (dto.eligibleSkus !== undefined) {
+      promo.eligibleSkus = dto.eligibleSkus;
     }
 
     if (dto.discountType !== undefined) {
-      if (
-        dto.discountType !== PromotionDiscountType.PERCENTAGE &&
-        dto.discountType !== PromotionDiscountType.FIXED
-      ) {
-        throw new BadRequestException(
-          `Promotion discount type must be either 'percentage' or 'fixed' for this promotion to be updated.`,
-        );
-      }
-      promo.discountType = dto.discountType;
+      promo.discountType = this.validateDiscountType(dto.discountType)!;
     }
 
     if (dto.usageLimit !== undefined) {
-      if (dto.usageLimit <= 0) {
-        throw new BadRequestException(
-          'Usage limit must be greater than zero for this promotion to be updated.',
-        );
-      }
-      promo.usageLimit = dto.usageLimit;
+      promo.usageLimit = this.validateUsageLimit(dto.usageLimit);
     }
 
     if (dto.discountValue !== undefined) {
-      const value = dto.discountValue;
-
-      if (value <= 0) {
-        throw new BadRequestException(
-          'Discount value must be positive for this promotion to be updated.',
-        );
-      }
-
       const updatedType = dto.discountType ?? promo.discountType;
-
-      // Percentage validation
-      if (updatedType === PromotionDiscountType.PERCENTAGE) {
-        if (value < 1 || value > 100) {
-          throw new BadRequestException(
-            'Percentage discount must be between 1 and 100 for this promotion to be updated.',
-          );
-        }
-      }
-
-      // Fixed validation
-      if (updatedType === PromotionDiscountType.FIXED) {
-        if (value < 1) {
-          throw new BadRequestException(
-            'Fixed discount must be greater than zero for this promotion to be updated.',
-          );
-        }
-      }
-
-      promo.discountValue = value;
+      const updatedDiscount = this.validateDiscount(
+        updatedType,
+        dto.discountValue,
+      );
+      promo.discountType = updatedType;
+      promo.discountValue = updatedDiscount;
     }
 
     if (dto.expirationDate !== undefined) {
-      const exp = new Date(dto.expirationDate);
-
-      if (isNaN(exp.getTime())) {
-        throw new BadRequestException(
-          'Invalid expiration date for this promotion.',
-        );
-      }
-
-      if (exp <= new Date()) {
-        throw new BadRequestException(
-          'Expiration date must be a future date for this promotion to be updated.',
-        );
-      }
-
-      promo.expirationDate = exp;
+      promo.expirationDate = this.validateExpiration(dto.expirationDate);
     }
 
     return this.promotionRepo.save(promo);
@@ -188,11 +173,9 @@ export class PromotionService {
 
   async delete(id: number): Promise<Promotion> {
     const promo = await this.findOne(id);
-
     try {
-      const deleted = await this.promotionRepo.remove(promo);
-      return deleted;
-    } catch (err: any) {
+      return await this.promotionRepo.remove(promo);
+    } catch {
       throw new BadRequestException(
         'Cannot remove promotion — it may be currently in use by existing orders.',
       );

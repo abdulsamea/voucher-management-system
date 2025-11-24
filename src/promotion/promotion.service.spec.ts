@@ -8,8 +8,7 @@ import { BadRequestException, NotFoundException } from '@nestjs/common';
 const mockPromotion: Promotion = {
   id: 1,
   code: 'PROMO123',
-  eligibleCategories: ['electronics'],
-  eligibleItems: ['ITEM123'],
+  eligibleSkus: ['SKU1', 'SKU2'],
   discountType: PromotionDiscountType.PERCENTAGE,
   discountValue: 10,
   expirationDate: new Date(Date.now() + 86400000),

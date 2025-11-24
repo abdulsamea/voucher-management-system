@@ -31,13 +31,15 @@ export class VoucherService {
 
   private validateVoucherType(voucherType: string) {
     if (
-      voucherType !== VoucherDiscountType.FIXED &&
-      voucherType !== VoucherDiscountType.PERCENTAGE
+      voucherType !== undefined &&
+      voucherType !== VoucherDiscountType.PERCENTAGE &&
+      voucherType !== VoucherDiscountType.FIXED
     ) {
       throw new BadRequestException(
-        `Voucher type must be either ${VoucherDiscountType.FIXED} or ${VoucherDiscountType.PERCENTAGE}`,
+        `Voucher discount type must be either '${VoucherDiscountType.PERCENTAGE}' or '${VoucherDiscountType.FIXED}'.`,
       );
     }
+    return voucherType as VoucherDiscountType;
   }
 
   private validateUsageLimit(limit: number) {
