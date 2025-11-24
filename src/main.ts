@@ -9,6 +9,11 @@ async function bootstrap() {
     .setDescription(
       'API documentation for orders, voucher & promotion management',
     )
+    .setContact(
+      'Abdul Samea',
+      'https://www.linkedin.com/in/abdul-samea/',
+      'abdulsamea2@gmail.com',
+    )
     .setVersion('1.0')
     .build();
 
