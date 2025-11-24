@@ -6,6 +6,7 @@ import {
   Param,
   Delete,
   ParseIntPipe,
+  UseGuards,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -15,14 +16,18 @@ import {
   ApiNotFoundResponse,
   ApiBadRequestResponse,
   ApiNoContentResponse,
+  ApiBearerAuth,
 } from '@nestjs/swagger';
 
 import { OrderService } from './order.service';
 import { CreateOrderDto } from './order.dto';
 import { Order } from './order.entity';
 import { Throttle } from '@nestjs/throttler';
+import { JwtAuthGuard } from 'src/auth/jwt-auth.guard';
 
-@ApiTags('Orders')
+@UseGuards(JwtAuthGuard)
+@ApiBearerAuth('JWT-auth')
+@ApiTags('Order')
 @Controller('order')
 export class OrderController {
   constructor(private readonly orderService: OrderService) {}

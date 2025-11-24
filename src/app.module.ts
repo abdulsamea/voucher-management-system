@@ -9,6 +9,8 @@ import { AppService } from './app.service';
 import { VoucherModule } from './voucher/voucher.module';
 import { PromotionModule } from './promotion/promotion.module';
 import { OrderModule } from './order/order.module';
+import { AuthModule } from './auth/auth.module';
+import { JwtAuthGuard } from './auth/jwt-auth.guard';
 
 @Module({
   imports: [
@@ -27,10 +29,15 @@ import { OrderModule } from './order/order.module';
     VoucherModule,
     PromotionModule,
     OrderModule,
+    AuthModule,
   ],
   controllers: [AppController],
   providers: [
     AppService,
+    {
+      provide: APP_GUARD,
+      useClass: JwtAuthGuard,
+    },
     {
       provide: APP_GUARD,
       useClass: ThrottlerGuard,

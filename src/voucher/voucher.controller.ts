@@ -6,6 +6,7 @@ import {
   ApiNotFoundResponse,
   ApiBadRequestResponse,
   ApiNoContentResponse,
+  ApiBearerAuth,
 } from '@nestjs/swagger';
 import {
   Controller,
@@ -16,11 +17,15 @@ import {
   Body,
   Param,
   ParseIntPipe,
+  UseGuards,
 } from '@nestjs/common';
 import { VoucherService } from './voucher.service';
 import { CreateVoucherDto, UpdateVoucherDto } from './voucher.dto';
 import { Throttle } from '@nestjs/throttler';
+import { JwtAuthGuard } from 'src/auth/jwt-auth.guard';
 
+@UseGuards(JwtAuthGuard)
+@ApiBearerAuth('JWT-auth')
 @ApiTags('Voucher')
 @Controller('voucher')
 export class VoucherController {

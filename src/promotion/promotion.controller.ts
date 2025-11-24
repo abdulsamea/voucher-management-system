@@ -6,6 +6,7 @@ import {
   ApiNotFoundResponse,
   ApiBadRequestResponse,
   ApiNoContentResponse,
+  ApiBearerAuth,
 } from '@nestjs/swagger';
 import {
   Controller,
@@ -16,11 +17,15 @@ import {
   Body,
   Param,
   ParseIntPipe,
+  UseGuards,
 } from '@nestjs/common';
 import { PromotionService } from './promotion.service';
 import { CreatePromotionDto, UpdatePromotionDto } from './promotion.dto';
 import { Throttle } from '@nestjs/throttler';
+import { JwtAuthGuard } from 'src/auth/jwt-auth.guard';
 
+@UseGuards(JwtAuthGuard)
+@ApiBearerAuth('JWT-auth')
 @ApiTags('Promotion')
 @Controller('promotion')
 export class PromotionController {
