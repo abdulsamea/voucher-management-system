@@ -112,6 +112,7 @@ npm run migration:revert
 
 | Module    | Description                                                                                                                                           |
 | --------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Auth      | Manages authnetication via JWT based mechanism and a single hardcoded `username` and `password`                                                       |
 | Voucher   | Manages voucher CRUD operations with discount rules, expiry validation, min order restriction, and usage limit tracking along with related test cases |
 | Promotion | Manages promotion CRUD operations with eligible SKUs validation, expiry rules, and usage deduction along with related test cases                      |
 | Orders    | Creates orders with transaction-safe business logic applying vouchers and promotions along with related test cases                                    |
