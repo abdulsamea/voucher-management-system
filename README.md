@@ -247,6 +247,10 @@ npm run test
 
 ---
 
+## Database Schema Diagram
+
+![Database ERD](docs/supabase-schema-yjzeerhgxmrbisbxcrjz.png)
+
 ## Output Behavior Summary
 
 | Component  | Auto-Handled Functionality                                    |
